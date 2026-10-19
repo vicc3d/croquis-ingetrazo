@@ -6,6 +6,8 @@ from __future__ import annotations
 _TEXTS = {
     "es": {
         "Marker": "Rotulador",
+        "Cast shadows": "Sombras arrojadas",
+        "Material colours": "Colores de los materiales",
         "Light and shade in grey marker": "Luz y sombra con rotulador gris",
         "Light": "Luz",
         "Classic, from the upper left": "Clásica, desde arriba a la izquierda",
@@ -44,6 +46,8 @@ _TEXTS = {
     },
     "pt-BR": {
         "Marker": "Marcador",
+        "Cast shadows": "Sombras projetadas",
+        "Material colours": "Cores dos materiais",
         "Light and shade in grey marker": "Luz e sombra com marcador cinza",
         "Light": "Luz",
         "Classic, from the upper left": "Clássica, do alto à esquerda",

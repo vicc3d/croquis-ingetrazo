@@ -96,7 +96,38 @@ def depth_buffer(tris: np.ndarray, M: np.ndarray, width: int, height: int,
     area = ((X[:, 1] - X[:, 0]) * (Y[:, 2] - Y[:, 0])
             - (X[:, 2] - X[:, 0]) * (Y[:, 1] - Y[:, 0]))
     live = (x1 > x0) & (y1 > y0) & (np.abs(area) > 1e-12)
-    for t in np.nonzero(live)[0]:
+    # Small triangles, the most of a detailed model, all at once: every one
+    # tested on the pixels of a square that holds its box.
+    side = np.maximum(x1 - x0, y1 - y0)
+    zf, xf = zbuf.reshape(-1), index.reshape(-1)
+    done = ~live
+    for S in (2, 4, 8, 16, 32):
+        group = np.nonzero(live & ~done & (side <= S))[0]
+        done[group] = True
+        oy, ox = np.divmod(np.arange(S * S), S)
+        step = max(1, 4_000_000 // (S * S))
+        for k in range(0, len(group), step):
+            g = group[k:k + step]
+            px = x0[g, None] + ox[None, :]
+            py = y0[g, None] + oy[None, :]
+            cx, cy = px + 0.5, py + 0.5
+            X0, X1, X2 = X[g, 0, None], X[g, 1, None], X[g, 2, None]
+            Y0, Y1, Y2 = Y[g, 0, None], Y[g, 1, None], Y[g, 2, None]
+            a = area[g, None]
+            w0 = ((X1 - cx) * (Y2 - cy) - (X2 - cx) * (Y1 - cy)) / a
+            w1 = ((X2 - cx) * (Y0 - cy) - (X0 - cx) * (Y2 - cy)) / a
+            w2 = 1.0 - w0 - w1
+            ok = ((w0 >= -1e-6) & (w1 >= -1e-6) & (w2 >= -1e-6)
+                  & (px < x1[g, None]) & (py < y1[g, None]))
+            if not ok.any():
+                continue
+            q = (w0 * Q[g, 0, None] + w1 * Q[g, 1, None] + w2 * Q[g, 2, None])[ok]
+            pix = (py * width + px)[ok]
+            tri = np.broadcast_to(src[g, None], ok.shape)[ok]
+            np.maximum.at(zf, pix, q)
+            win = q >= zf[pix]
+            xf[pix[win]] = tri[win]
+    for t in np.nonzero(~done)[0]:
         xs = np.arange(x0[t], x1[t]) + 0.5
         ys = np.arange(y0[t], y1[t]) + 0.5
         px, py = np.meshgrid(xs, ys)

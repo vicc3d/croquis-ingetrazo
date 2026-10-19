@@ -262,3 +262,50 @@ def test_the_tab_draws_with_the_marker(window):
     # Paper is ~240; marker greys sit between the paper and the ink.
     assert ((grey > 140) & (grey < 215)).sum() > 2000
     panel._window.close()
+
+
+def test_the_box_casts_its_shadow_away_from_the_sun(window):
+    """A sun from the +x side, low: the box's shadow falls on the ground on
+    its -x side, and not on its +x side."""
+    from croquis import marker as mk
+    from croquis import shadow as sh
+    win, _a = window
+    vp = win.viewport
+    vp.camera.pitch = math.radians(60)        # look down on the ground
+    _app.processEvents()
+    w, h = vp.width(), vp.height()
+    view = drawing.View(vp, w, h)
+    light = np.array([1.0, 0.0, 0.6])
+    light /= np.linalg.norm(light)
+    _v, _p, normals, _po = mk.face_values(view.index, view.tris, vp.camera, light)
+    cast = sh.cast_shadow(view, normals, light)
+
+    def at(x, y, z):
+        px, py, _f = vp.world_to_pixels(np.array([[x, y, z]], dtype=float))
+        return bool(cast[int(py[0]), int(px[0])])
+
+    assert at(-1.5, 1, 0) and at(-3, 1, 0)       # behind the box, from the sun
+    assert not at(4, 1, 0) and not at(1, 1, 3)   # in front, and its top
+
+
+def test_colours_go_to_the_nearest_marker():
+    from croquis import palette as pal
+    brick = pal.MARKERS.index((196, 72, 52))
+    assert pal.nearest_marker((0.75, 0.3, 0.22)) == brick
+    assert pal.nearest_marker((0.96, 0.95, 0.925)) == -1     # the default face
+    assert pal.nearest_marker((0.5, 0.5, 0.5)) == -1         # a grey
+    assert pal.nearest_marker((0.2, 0.45, 0.85)) in (
+        pal.MARKERS.index((80, 120, 180)), pal.MARKERS.index((130, 175, 215)))
+
+
+def test_painted_faces_get_their_marker(window):
+    from croquis import palette as pal
+    win, _a = window
+    vp = win.viewport
+    for f in vp.scene.loose_mesh.faces:
+        f.attrs["color"] = [0.75, 0.3, 0.22]
+    vp.notify_scene_changed()
+    _app.processEvents()
+    tris, colour = pal.triangle_colours(vp)
+    assert len(tris) == len(colour) > 0
+    assert (colour == pal.MARKERS.index((196, 72, 52))).all()

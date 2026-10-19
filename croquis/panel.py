@@ -86,6 +86,12 @@ class CroquisPanel(QWidget):
         self.strength = _slider(20, 150, int(m.strength * 100))
         mform.addRow(tr("Grey"), self.strength)
         lay.addLayout(mform)
+        self.shadows = QCheckBox(tr("Cast shadows"))
+        self.shadows.setChecked(m.shadows)
+        self.colour = QCheckBox(tr("Material colours"))
+        self.colour.setChecked(m.colour)
+        lay.addWidget(self.shadows)
+        lay.addWidget(self.colour)
         self.marker_on.toggled.connect(self._enable_marker)
 
         size_row = QFormLayout()
@@ -107,14 +113,16 @@ class CroquisPanel(QWidget):
         for w in (self.hand, self.weight, self.overshoot, self.offset,
                   self.nib, self.strength):
             w.valueChanged.connect(self._save)
-        for w in (self.outlines, self.twice, self.breaks, self.marker_on):
+        for w in (self.outlines, self.twice, self.breaks, self.marker_on,
+                  self.shadows, self.colour):
             w.toggled.connect(self._save)
         self.size.currentIndexChanged.connect(self._save)
         self.light.currentIndexChanged.connect(self._save)
         self._enable_marker(self.marker_on.isChecked())
 
     def _enable_marker(self, on: bool) -> None:
-        for w in (self.light, self.offset, self.nib, self.strength):
+        for w in (self.light, self.offset, self.nib, self.strength,
+                  self.shadows, self.colour):
             w.setEnabled(on)
 
     # ---- Settings (per user, not in the document) ---------------------------
@@ -145,6 +153,8 @@ class CroquisPanel(QWidget):
         self.offset.setValue(num("marker/offset", self.offset.value()))
         self.nib.setValue(num("marker/nib", self.nib.value()))
         self.strength.setValue(num("marker/strength", self.strength.value()))
+        self.shadows.setChecked(flag("marker/shadows", self.shadows.isChecked()))
+        self.colour.setChecked(flag("marker/colour", self.colour.isChecked()))
 
     def _save(self, *_a) -> None:
         q = QSettings(*_SETTINGS)
@@ -160,6 +170,8 @@ class CroquisPanel(QWidget):
         q.setValue("marker/offset", self.offset.value())
         q.setValue("marker/nib", self.nib.value())
         q.setValue("marker/strength", self.strength.value())
+        q.setValue("marker/shadows", self.shadows.isChecked())
+        q.setValue("marker/colour", self.colour.isChecked())
 
     def style(self) -> LineStyle:
         return LineStyle(
@@ -176,7 +188,9 @@ class CroquisPanel(QWidget):
             light=self.light.currentData(),
             offset=float(self.offset.value()),
             width=float(self.nib.value()),
-            strength=self.strength.value() / 100.0)
+            strength=self.strength.value() / 100.0,
+            shadows=self.shadows.isChecked(),
+            colour=self.colour.isChecked())
 
     # ---- Drawing ---------------------------------------------------------------
     def draw(self) -> None:

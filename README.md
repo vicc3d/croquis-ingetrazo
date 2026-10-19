@@ -10,8 +10,12 @@ Light and shade go on in **grey marker**: each face white, light grey or
 dark grey by how the light falls on it (a classic light from the upper left,
 or the sun of IngeTrazo's Shadows panel), in broad parallel strokes up the
 walls and across the roofs, darker where they overlap, ragged at the ends,
-and a little off the ink lines. Cast shadows, colour markers, hatching and
-watercolour washes come next.
+and a little off the ink lines. Where something stands between a face and
+the light, its **cast shadow** goes on in a cool grey. Under the greys, each
+material's **colour** in the nearest marker of a box of twenty (a colour
+with little colour in it gets none), lighter and quicker where the light
+falls, the paper showing between the strokes. Hatching and watercolour
+washes come next.
 
 ## Install
 
@@ -41,6 +45,12 @@ parallel views all work. The settings are kept between sessions.
   pixel; its normal against the light gives the value. The strokes run up
   a wall (the world's vertical, as drawn) or across a floor along its
   flatter axis, and are multiplied onto the paper, as a marker's ink is.
+- **Cast shadows:** a second depth buffer, seen from the light (a shadow
+  map); every pixel of the view is taken back to its point on the model,
+  which is in shadow when something nearer the light covers it there.
+- **The colours:** from IngeTrazo's own index of the view's triangles,
+  the face each one belongs to and its paint (or its group's; a texture by
+  its average colour), sent to the nearest marker.
 - **The hand:** each line overshoots at real corners only (never where it
   passes behind something), bows more the longer it is, wavers, swells and
   thins. Everything random is seeded by the line itself, so the same view

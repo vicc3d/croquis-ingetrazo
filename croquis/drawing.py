@@ -15,6 +15,8 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
 
 from . import marker as mk
+from . import palette as pal
+from . import shadow as sh
 from . import strokes as st
 from . import visibility as vis
 
@@ -38,7 +40,12 @@ class View:
         self.camera = cam
         self.scene = viewport.scene
         self.geom = viewport.hlr_geometry()
-        self.tris = np.asarray(self.geom[0], dtype=np.float64).reshape(-1, 3, 3)
+        coloured = pal.triangle_colours(viewport)
+        if coloured is not None:
+            self.tris, self.colour = coloured
+        else:
+            self.tris = np.asarray(self.geom[0], dtype=np.float64).reshape(-1, 3, 3)
+            self.colour = None
         self.M = vis.clip_matrix(cam)
         self.zbuf, self.index = vis.depth_buffer(self.tris, self.M, self.bw,
                                                  self.bh, bool(cam.perspective))
@@ -90,12 +97,19 @@ def marker_layer(view: View, style: mk.MarkerStyle) -> np.ndarray:
     light = mk.light_direction(view.camera, view.scene, style.light)
     values, plane, normals, plane_of = mk.face_values(view.index, view.tris,
                                                       view.camera, light)
+    if style.shadows:
+        cast = sh.cast_shadow(view, normals, light)
+        values = np.where(cast & (values >= 0), 3, values).astype(np.int8)
+    colour = None
+    if style.colour and view.colour is not None:
+        colour = np.where(view.index >= 0,
+                          view.colour[np.clip(view.index, 0, None)], -1)
     n_planes = int(plane_of.max()) + 1 if len(plane_of) else 0
     angles = mk.stroke_angles(normals, plane_of, n_planes, view.camera,
                               view.M, view.bw, view.bh)
     ones = np.full((view.bh, view.bw, 3), 255.0)
     factor = mk.paint(ones, values, plane, angles, style,
-                      view.bh / st.REFERENCE_HEIGHT)
+                      view.bh / st.REFERENCE_HEIGHT, colour=colour)
     return _resize(factor, view.width, view.height) / 255.0
 
 

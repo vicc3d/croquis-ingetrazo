@@ -4,8 +4,11 @@
 
 Every face gets one of three values by how the light falls on it: the white
 of the paper where it is lit, a light grey where it turns from the light, a
-darker grey where it faces away. A sketcher does not shade more finely than
-that.
+darker grey where it faces away; and where something stands between it and
+the light (:mod:`.shadow`), a cool grey, the cast shadow. A sketcher does not
+shade more finely than that. Under the greys, the colour of each material in
+the nearest marker of the box (:mod:`.palette`), lighter where the light
+falls.
 
 The grey goes on as a broad marker does: parallel strokes, a little darker
 where two overlap, along the face (up a wall, across a roof); the edges are
@@ -25,6 +28,8 @@ import numpy as np
 #: Warm greys (alcohol markers): the light one, and the dark one laid over.
 LIGHT_GREY = (196, 190, 181)
 DARK_GREY = (150, 144, 136)
+#: Cast shadows: a cool grey, as in a marker sketch.
+SHADOW_GREY = (140, 148, 160)
 LIGHTS = ("classic", "sun")
 
 
@@ -36,6 +41,8 @@ class MarkerStyle:
     offset: float = 12.0          # how far the fill sits off the lines
     width: float = 26.0           # the marker's nib
     strength: float = 1.0         # 0..1.5, how much grey
+    shadows: bool = True          # cast shadows, in cool grey
+    colour: bool = True           # the materials' colours
 
 
 def triangle_normals(tris: np.ndarray) -> np.ndarray:
@@ -171,14 +178,16 @@ def _noise(shape, cell: float, seed: int) -> np.ndarray:
 
 
 def _marker_pass(soft: np.ndarray, angle_px: np.ndarray, plane: np.ndarray,
-                 nib: float, seed: int) -> np.ndarray:
+                 nib: float, seed: int, skip: float = 0.0, grid=None,
+                 streak=None) -> np.ndarray:
     """How much ink one pass of the marker leaves at each pixel (0..1):
     parallel strokes ``nib`` wide at ``angle_px`` (per pixel), overlapping a
     little, each stroke a touch lighter or darker, over the blurred fill
     ``soft``. Each stroke stops at its own point near the edge of the fill:
-    some fall short, some run past."""
+    some fall short, some run past. ``skip``: the share of strokes left out,
+    so the paper shows between them (a lit face done quickly)."""
     h, w = soft.shape
-    yy, xx = np.mgrid[0:h, 0:w].astype(np.float64)
+    yy, xx = grid if grid is not None else np.mgrid[0:h, 0:w].astype(np.float64)
     # Across the strokes: the coordinate normal to their direction.
     u = -xx * np.sin(angle_px) + yy * np.cos(angle_px)
     spacing = nib * 0.82
@@ -190,16 +199,26 @@ def _marker_pass(soft: np.ndarray, angle_px: np.ndarray, plane: np.ndarray,
     dens = 0.80 + 0.20 * ((hsh & 1023) / 1023.0)
     reach = (((hsh >> 10) & 1023) / 1023.0 - 0.5) * 0.5
     cover = np.clip((soft + reach - 0.42) / 0.12, 0.0, 1.0)
+    if skip > 0:
+        cover = cover * (((hsh >> 20) & 1023) / 1023.0 >= skip)
     # The strokes' own streaks: lighter and darker along each one.
-    streak = 0.88 + 0.12 * _noise((h, w), nib * 0.35, seed + 5)
+    if streak is None:
+        streak = _noise((h, w), nib * 0.35, seed + 5)
+    else:                                # the shared field, moved per pass
+        streak = np.roll(streak, (seed * 37) % max(1, streak.shape[0]), axis=0)
+    streak = 0.88 + 0.12 * streak
     ink = dens * streak * np.where(overlap, 1.45, 1.0)
     return np.clip(cover * ink, 0.0, 1.0)
 
 
 def paint(base: np.ndarray, values: np.ndarray, plane: np.ndarray,
-          angles: np.ndarray, style: MarkerStyle, scale: float) -> np.ndarray:
-    """Lay the greys on ``base`` (H, W, 3 floats 0..255): the fills shifted
-    by the offset, with ragged edges; multiplied, as a marker's ink is."""
+          angles: np.ndarray, style: MarkerStyle, scale: float,
+          colour: np.ndarray | None = None) -> np.ndarray:
+    """Lay the markers on ``base`` (H, W, 3 floats 0..255): the colours
+    first (``colour``: a marker index per pixel, -1 none), the greys over
+    them; ``values`` 0 lit, 1 turned, 2 away, 3 cast shadow, -1 nothing.
+    The fills shifted by the offset, with ragged edges; multiplied, as a
+    marker's ink is."""
     if not style.enabled:
         return base
     h, w = values.shape
@@ -209,16 +228,48 @@ def paint(base: np.ndarray, values: np.ndarray, plane: np.ndarray,
     pl = _shift(plane, dx, dy, -1)
     angle_px = np.where(pl >= 0, angles[np.clip(pl, 0, len(angles) - 1)], 0.0)
     rough = _noise((h, w), 18.0 * scale, 11)
-    r = max(1, int(round(5.0 * scale)))
+    r = max(1, int(round(3.0 * scale)))
     out = base.copy()
     nib = max(4.0, style.width * scale)
-    for level, grey, seed, turn in ((1, LIGHT_GREY, 21, 0.0), (2, DARK_GREY, 37, 0.12)):
-        ind = (vals >= level).astype(np.float64)
+    grid = np.mgrid[0:h, 0:w].astype(np.float64)
+    streak = _noise((h, w), nib * 0.35, 5)
+
+    def lay(ind, tint, seed, turn, strength, skip=0.0):
+        rows = np.nonzero(ind.any(axis=1))[0]
+        if not len(rows):
+            return
+        cols = np.nonzero(ind.any(axis=0))[0]
+        # Only the box the fill takes, and a margin for its ragged edge.
+        m = r + 2
+        y0, y1 = max(0, rows[0] - m), min(h, rows[-1] + m + 1)
+        x0, x1 = max(0, cols[0] - m), min(w, cols[-1] + m + 1)
+        box = (slice(y0, y1), slice(x0, x1))
+        soft = _box_blur(ind[box], r) + (rough[box] - 0.5) * 0.25
+        ink = _marker_pass(soft, angle_px[box] + turn, pl[box], nib, seed, skip,
+                           (grid[0][box], grid[1][box]), streak[box])
+        alpha = np.clip(ink * strength, 0.0, 1.0)[:, :, None]
+        t = np.array(tint, dtype=np.float64)[None, None, :] / 255.0
+        out[box] *= 1.0 - alpha * (1.0 - t)
+
+    if colour is not None and style.colour:
+        from .palette import MARKERS
+        col = _shift(colour, dx, dy, -1)
+        for k in np.unique(col[col >= 0]):
+            here = col == k
+            # Where the light falls, the colour goes on lighter and quicker:
+            # some strokes left out, the paper showing between them.
+            lit = here & (vals == 0)
+            lay(lit.astype(np.float64), MARKERS[int(k)], 101 + int(k), -0.05,
+                0.6, skip=0.4)
+            lay((here & ~lit).astype(np.float64), MARKERS[int(k)], 131 + int(k),
+                -0.05, 0.85)
+    passes = [(lambda v: (v == 1) | (v == 2), LIGHT_GREY, 21, 0.0),
+              (lambda v: v == 2, DARK_GREY, 37, 0.12),
+              (lambda v: v == 3, SHADOW_GREY, 53, 0.06),
+              (lambda v: v == 3, SHADOW_GREY, 59, -0.1)]
+    for test, grey, seed, turn in passes:
+        ind = test(vals).astype(np.float64)
         if not ind.any():
             continue
-        soft = _box_blur(ind, r) + (rough - 0.5) * 0.3
-        ink = _marker_pass(soft, angle_px + turn, pl, nib, seed)
-        alpha = np.clip(ink * 0.62 * style.strength, 0.0, 1.0)[:, :, None]
-        tint = np.array(grey, dtype=np.float64)[None, None, :] / 255.0
-        out *= 1.0 - alpha * (1.0 - tint)
+        lay(ind, grey, seed, turn, 0.62 * style.strength)
     return out
