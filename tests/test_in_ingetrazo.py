@@ -40,6 +40,11 @@ def window(monkeypatch):
     # Only IngeTrazo's own plugins: never a copy installed in the user's
     # plugins folder.
     monkeypatch.setattr(extensions, "plugin_dirs", lambda: [app_root() / "plugins"])
+    # The panel's settings in a place of the tests' own, never the user's.
+    from croquis import panel as croquis_panel
+    from PySide6.QtCore import QSettings
+    monkeypatch.setattr(croquis_panel, "_SETTINGS", ("ingetrazo-croquis-tests", "croquis"))
+    QSettings("ingetrazo-croquis-tests", "croquis").clear()
     win = MainWindow()
     win.resize(1000, 700)
     win.show()
