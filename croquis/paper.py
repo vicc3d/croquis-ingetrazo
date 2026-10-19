@@ -88,7 +88,7 @@ def make(kind: str, width: int, height: int, seed: int = 7,
                     lines[(step // 2 + dy)::step, (step // 2 + dx)::step] = True
             a = 0.55
         sheet[lines] = sheet[lines] * (1 - a) + ink * a
-    return np.clip(sheet, 0, 255)
+    return np.clip(sheet, 0, 255).astype(np.float32)
 
 
 def _from_image(path: str, width: int, height: int):
@@ -115,4 +115,4 @@ def _from_image(path: str, width: int, height: int):
     a = np.frombuffer(out.constBits(), dtype=np.uint8,
                       count=out.bytesPerLine() * height)
     return a.reshape(height, out.bytesPerLine())[:, :width * 3].reshape(
-        height, width, 3).astype(np.float64)
+        height, width, 3).astype(np.float32)

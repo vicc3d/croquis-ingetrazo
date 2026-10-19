@@ -180,29 +180,78 @@ def drawing_size(camera, width: int) -> tuple:
     return width, max(1, int(round(width / max(camera.aspect, 1e-6))))
 
 
-def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
+class Layers:
+    """A drawing kept as its layers, as the exporters need them: the sheet
+    of paper (H, W, 3), the fill as the factors it multiplies the paper by
+    (or None), and the ink strokes (polygons, in the sheet's pixels). The
+    drawing sits at ``origin`` on the sheet, ``size`` big (a page format
+    leaves a margin round it)."""
+
+    def __init__(self, sheet, fill, strokes, origin, size) -> None:
+        self.sheet = sheet
+        self.fill = fill
+        self.strokes = strokes
+        self.origin = origin
+        self.size = size
+
+    @property
+    def width(self) -> int:
+        return self.sheet.shape[1]
+
+    @property
+    def height(self) -> int:
+        return self.sheet.shape[0]
+
+    def coloured_sheet(self) -> np.ndarray:
+        """The paper with the fill laid on it."""
+        if self.fill is None:
+            return self.sheet
+        out = self.sheet.copy()
+        ox, oy = self.origin
+        w, h = self.size
+        out[oy:oy + h, ox:ox + w] *= self.fill
+        return out
+
+    def image(self) -> QImage:
+        img = to_qimage(self.coloured_sheet())
+        draw_strokes(img, self.strokes)
+        return img
+
+
+def page_size(fmt: str, dpi: int, landscape: bool) -> tuple:
+    """A paper format's size in pixels: ``A5``, ``A4`` or ``A3`` at ``dpi``."""
+    mm = {"A5": (148, 210), "A4": (210, 297), "A3": (297, 420)}[fmt]
+    w, h = (mm[1], mm[0]) if landscape else mm
+    return int(round(w / 25.4 * dpi)), int(round(h / 25.4 * dpi))
+
+
+def render(viewport, style: st.LineStyle, width: int, view: View | None = None,
            marker: mk.MarkerStyle | None = None,
            composition: cp.Composition | None = None,
-           paper_kind: str = "cream", paper_image: str = "") -> QImage:
-    """The current view as a freehand drawing, ``width`` pixels wide (the
-    height follows the view): paper, the fill (``marker``: grey and colour
-    marker or watercolour, if on), the ink: hatching, then the lines.
-    ``view``: a :class:`View` the caller already made."""
+           paper_kind: str = "cream", paper_image: str = "",
+           page: tuple | None = None) -> Layers:
+    """The current view as a freehand drawing, as its :class:`Layers`:
+    ``width`` pixels wide (the height follows the view), on a sheet that
+    size, or centred on a ``page`` = (width, height) sheet. Paper, the fill
+    (``marker``: marker or watercolour or high contrast, if on), the ink:
+    construction and ground strokes, hatching, then the lines. ``view``: a
+    :class:`View` the caller already made."""
     width, height = drawing_size(viewport.camera, width)
     view = view if view is not None else View(viewport, width, height)
     comp = composition if composition is not None else cp.Composition(
         unfinished=False, construction=False, ground=False)
-    sheet = pp.make(paper_kind, width, height, image=paper_image)
+    pw, ph = page if page is not None else (width, height)
+    ox, oy = (pw - width) // 2, (ph - height) // 2
+    sheet = pp.make(paper_kind, pw, ph, image=paper_image)
     subject = cp.subject_mask(view.index, view.tris) \
         if (comp.unfinished or comp.ground) else None
     fade = (cp.fade_map(subject, view.bh / st.REFERENCE_HEIGHT)
             if comp.unfinished else None)
-    maps = None
+    maps = fill = None
     if marker is not None and (marker.enabled or marker.hatching) and len(view.tris):
         maps = shade_maps(view, marker)
         if marker.enabled:
-            sheet = sheet * fill_layer(view, marker, maps, fade)
-    img = to_qimage(sheet)
+            fill = fill_layer(view, marker, maps, fade)
     kinds = view.outline if style.profile_scale != 1.0 else None
     strokes = []
     if comp.construction:
@@ -216,5 +265,17 @@ def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
             shade = cp.thin_out(shade, fade, view.scale)
         strokes += shade
     strokes += st.strokes_for(view.segs, kinds, style, height)
-    draw_strokes(img, strokes)
-    return img
+    if ox or oy:
+        shift = np.array([ox, oy], dtype=np.float64)
+        strokes = [st.Stroke(s.outline + shift, s.opacity) for s in strokes]
+    return Layers(sheet, fill, strokes, (ox, oy), (width, height))
+
+
+def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
+           marker: mk.MarkerStyle | None = None,
+           composition: cp.Composition | None = None,
+           paper_kind: str = "cream", paper_image: str = "",
+           page: tuple | None = None) -> QImage:
+    """:func:`render`, as one image."""
+    return render(viewport, style, width, view, marker, composition,
+                  paper_kind, paper_image, page).image()

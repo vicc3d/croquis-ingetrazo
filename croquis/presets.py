@@ -28,6 +28,7 @@ DEFAULTS = {
     "unfinished": True, "construction": True, "ground": False,
     "size": 2400,
     "paper": "cream", "paper_image": "",
+    "custom_format": "A4", "custom_width": 3000, "dpi": 300,
 }
 
 #: The ready-made styles: what each sets. Key → (label, choices).

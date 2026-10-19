@@ -32,7 +32,10 @@ from .ui import (Choice, Segmented, Switch, Tile, icon_pixmap, stylesheet,
 
 _SETTINGS = ("ingetrazo-croquis", "croquis")
 THUMBS = Path(__file__).resolve().parent / "thumbs"
-SIZES = ((1600, "S"), (2400, "M"), (3600, "L"))
+SIZES = ((1600, "S"), (2400, "M"), (3600, "L"), (0, "…"))
+FORMATS = (("px", "Width in pixels"), ("A5", "A5"), ("A4", "A4"), ("A3", "A3"))
+#: A page format's margin round the drawing, as a share of each side.
+PAGE_MARGIN = 0.07
 MATERIALS = (("colour", ("#D85A30", "#BA7517")), ("greys", ("#B4B2A9", "#5F5E5A")),
              ("contrast", ("#F1EFE8", "#2C2C2A")), ("none", ("#F1EFE8",)))
 
@@ -354,7 +357,7 @@ class CroquisPanel(QWidget):
         bottom = QHBoxLayout()
         bottom.setSpacing(8)
         self.size = Segmented([(w, None, label) for w, label in SIZES])
-        self.size.setToolTip(tr("Drawing width: 1600, 2400 or 3600 px"))
+        self.size.setToolTip(tr("Drawing width: 1600, 2400 or 3600 px, or another size"))
         self.size.changed.connect(lambda v: self._set("size", v))
         bottom.addWidget(self.size, 1)
         self.draw_btn = QPushButton(tr("Draw the view"))
@@ -363,6 +366,29 @@ class CroquisPanel(QWidget):
         self.draw_btn.clicked.connect(self.draw)
         bottom.addWidget(self.draw_btn, 2)
         t.body.addLayout(bottom)
+        from PySide6.QtWidgets import QComboBox, QSpinBox
+        self.custom_box = QWidget()
+        cl = QHBoxLayout(self.custom_box)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(6)
+        self.fmt = QComboBox()
+        for key, label in FORMATS:
+            self.fmt.addItem(tr(label), key)
+        self.fmt.currentIndexChanged.connect(
+            lambda _i: self._set("custom_format", self.fmt.currentData()))
+        self.px = QSpinBox()
+        self.px.setRange(400, 12000)
+        self.px.setSingleStep(100)
+        self.px.setSuffix(" px")
+        self.px.valueChanged.connect(lambda v: self._set("custom_width", v))
+        self.dpi = QComboBox()
+        for d in (150, 300):
+            self.dpi.addItem(tr("{d} dpi", d=d), d)
+        self.dpi.currentIndexChanged.connect(lambda _i: self._set("dpi", self.dpi.currentData()))
+        cl.addWidget(self.fmt, 2)
+        cl.addWidget(self.px, 1)
+        cl.addWidget(self.dpi, 1)
+        t.body.addWidget(self.custom_box)
         self.status = QLabel("")
         self.status.setObjectName("hint")
         self.status.setWordWrap(True)
@@ -525,6 +551,11 @@ class CroquisPanel(QWidget):
             for key, sl in self.sliders.items():
                 sl.setValue(s[key])
             self.size.set_value(s["size"])
+            i = self.fmt.findData(s["custom_format"])
+            self.fmt.setCurrentIndex(max(0, i))
+            self.px.setValue(s["custom_width"])
+            i = self.dpi.findData(s["dpi"])
+            self.dpi.setCurrentIndex(max(0, i))
             for key, b in self.papers.items():
                 b.setChecked(s["paper"] == key)
             img = s.get("paper_image") or ""
@@ -545,6 +576,10 @@ class CroquisPanel(QWidget):
         self.toggles["shadows"].setEnabled(shade)
         self.hatch_dir.setEnabled(s["hatching"])
         self.turn.setEnabled(s["hatching"])
+        custom = s["size"] == 0
+        self.custom_box.setVisible(custom)
+        self.px.setVisible(s["custom_format"] == "px")
+        self.dpi.setVisible(s["custom_format"] != "px")
         self.preview.set_style(self.style())
 
     # ---- What the drawing is given -------------------------------------------------
@@ -568,26 +603,43 @@ class CroquisPanel(QWidget):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             QApplication.processEvents()
-            w, h = drawing.drawing_size(vp.camera, int(self.s["size"]))
+            width, page = self.output_size(vp.camera)
+            w, h = drawing.drawing_size(vp.camera, width)
             view = drawing.View(vp, w, h)
             if not len(view):
                 self._say(tr("Nothing to draw: the view shows no lines."))
                 return
-            img = drawing.sketch(vp, self.style(), w, view=view,
-                                 marker=self.marker_style(),
-                                 composition=self.composition(),
-                                 paper_kind=self.s["paper"],
-                                 paper_image=self.s["paper_image"])
+            layers = drawing.render(vp, self.style(), w, view=view,
+                                    marker=self.marker_style(),
+                                    composition=self.composition(),
+                                    paper_kind=self.s["paper"],
+                                    paper_image=self.s["paper_image"], page=page)
         finally:
             QApplication.restoreOverrideCursor()
         self._say("")
         if self._window is None:
             self._window = SketchWindow(self.app)
-        self._window.show_image(img)
+        self._window.show_layers(layers, self.s["dpi"] if page else None)
+
+    def output_size(self, camera) -> tuple:
+        """``(drawing width, page or None)``: S/M/L, a width of your own, or
+        a paper format (the drawing centred with a margin, the page turned
+        to the drawing's shape)."""
+        s = self.s
+        if s["size"]:
+            return int(s["size"]), None
+        if s["custom_format"] == "px":
+            return int(s["custom_width"]), None
+        aspect = max(camera.aspect, 1e-6)
+        pw, ph = drawing.page_size(s["custom_format"], int(s["dpi"]), aspect >= 1.0)
+        avail_w, avail_h = pw * (1 - 2 * PAGE_MARGIN), ph * (1 - 2 * PAGE_MARGIN)
+        width = int(min(avail_w, avail_h * aspect))
+        return width, (pw, ph)
 
 
 class SketchWindow(QDialog):
-    """The drawing, fitted to the window; saved or copied from here."""
+    """The drawing, fitted to the window; saved (PNG, SVG in layers, PDF)
+    or copied from here."""
 
     def __init__(self, app) -> None:
         super().__init__(app.window)
@@ -596,6 +648,8 @@ class SketchWindow(QDialog):
         self.setModal(False)
         self.resize(1000, 760)
         self._img = None
+        self._layers = None
+        self._dpi = None
         lay = QVBoxLayout(self)
         self.view = QLabel()
         self.view.setAlignment(Qt.AlignCenter)
@@ -607,7 +661,7 @@ class SketchWindow(QDialog):
         row = QHBoxLayout()
         self.note = QLabel("")
         row.addWidget(self.note, 1)
-        for icon, text, fn in (("guardar", tr("Save PNG…"), self.save),
+        for icon, text, fn in (("guardar", tr("Save as…"), self.save),
                                ("copiar", tr("Copy"), self.copy),
                                (None, tr("Close"), self.close)):
             b = QPushButton(text)
@@ -616,6 +670,11 @@ class SketchWindow(QDialog):
             b.clicked.connect(fn)
             row.addWidget(b)
         lay.addLayout(row)
+
+    def show_layers(self, layers, dpi=None) -> None:
+        self._layers = layers
+        self._dpi = dpi
+        self.show_image(layers.image())
 
     def show_image(self, img) -> None:
         self._img = img
@@ -646,18 +705,32 @@ class SketchWindow(QDialog):
             return str(p.with_name(p.stem + "-croquis.png"))
         return str(Path.home() / "croquis.png")
 
+    FILTERS = ("PNG (*.png)", "SVG (*.svg)", "PDF (*.pdf)")
+
     def save(self) -> None:
         if self._img is None:
             return
-        path, _f = QFileDialog.getSaveFileName(
-            self, tr("Save the sketch"), self._default_path(), "PNG (*.png)")
+        path, chosen = QFileDialog.getSaveFileName(
+            self, tr("Save the sketch"), self._default_path(), ";;".join(self.FILTERS))
         if not path:
             return
-        if not path.lower().endswith(".png"):
-            path += ".png"
-        ok = self._img.save(path, "PNG")
+        ext = {"PNG": ".png", "SVG": ".svg", "PDF": ".pdf"}.get(chosen[:3], ".png")
+        if not path.lower().endswith((".png", ".svg", ".pdf")):
+            path += ext
+        self.save_to(path)
+
+    def save_to(self, path: str) -> bool:
+        from . import export
+        if self._layers is not None:
+            if path.lower().endswith(".pdf") and self._dpi:
+                ok = export.save_pdf(self._layers, path, self._dpi)
+            else:
+                ok = export.save(self._layers, path)
+        else:
+            ok = self._img.save(path, "PNG")
         self.note.setText(tr("Saved: {path}", path=path) if ok
                           else tr("Could not save {path}", path=path))
+        return ok
 
     def copy(self) -> None:
         if self._img is not None:

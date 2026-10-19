@@ -62,8 +62,17 @@ bento of small boxes, one decision each:
 - **Fine settings**, folded: line weight, overshoot, offset, nib,
   intensity, natural variation.
 
-Pick the size (S, M, L: 1600, 2400 or 3600 px wide) and press **Draw the
-view**: the drawing opens in a window of its own, to save as PNG or copy.
+Pick the paper (cream, white, kraft, toned grey, tracing, squared, dotted,
+or an image of your own) and the size: S, M, L (1600, 2400 or 3600 px
+wide), a width of your own, or a page (A5, A4, A3 at 150 or 300 dpi, the
+drawing centred with a margin). Press **Draw the view**: the drawing opens
+in a window of its own, to copy or save as:
+
+- **PNG**;
+- **SVG** in layers (paper, colour and shade, ink): the ink is vector,
+  every stroke a path you can edit; the paper and the fill are images, the
+  fill multiplied onto the paper;
+- **PDF**, the page at its size, the ink as vector paths.
 Perspective, two-point and parallel views all work. The panel follows
 IngeTrazo's light or dark theme, and the settings are kept between sessions.
 

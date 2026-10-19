@@ -5,6 +5,10 @@ from __future__ import annotations
 
 _TEXTS = {
     "es": {
+        "{d} dpi": "{d} ppp",
+        "Width in pixels": "Ancho en píxeles",
+        "Save as…": "Guardar como…",
+        "Drawing width: 1600, 2400 or 3600 px, or another size": "Ancho del dibujo: 1600, 2400 o 3600 px, u otro tamaño",
         "Paper": "Papel",
         "Cream": "Crema",
         "White": "Blanco",
@@ -108,6 +112,10 @@ _TEXTS = {
             "Dibuja un croquis a mano alzada de la vista actual.",
     },
     "pt-BR": {
+        "{d} dpi": "{d} dpi",
+        "Width in pixels": "Largura em pixels",
+        "Save as…": "Salvar como…",
+        "Drawing width: 1600, 2400 or 3600 px, or another size": "Largura do desenho: 1600, 2400 ou 3600 px, ou outro tamanho",
         "Paper": "Papel",
         "Cream": "Creme",
         "White": "Branco",

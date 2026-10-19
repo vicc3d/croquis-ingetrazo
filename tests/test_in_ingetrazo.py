@@ -652,3 +652,39 @@ def test_the_paper_box_picks_an_image_of_your_own(window, monkeypatch, tmp_path)
     panel.papers["custom"].click()                    # cancelled: stays
     assert panel.s["paper"] == "grid"
     assert panel.papers["grid"].isChecked() and not panel.papers["custom"].isChecked()
+
+
+def test_custom_sizes_and_page_formats(window):
+    win, _a = window
+    panel = _panel(win)
+    cam = win.viewport.camera
+    panel.size.buttons[3].click()                     # «…»: another size
+    assert panel.custom_box.isVisibleTo(panel)
+    panel.set("custom_format", "px")
+    panel.set("custom_width", 1234)
+    assert panel.output_size(cam) == (1234, None)
+    panel.set("custom_format", "A4")
+    panel.set("dpi", 150)
+    width, page = panel.output_size(cam)
+    assert set(page) == {1240, 1754}                  # A4 at 150 dpi
+    assert (page[0] > page[1]) == (cam.aspect >= 1)   # turned to the view
+    assert width <= page[0] * 0.86 + 1
+
+
+def test_save_png_svg_and_pdf(window, tmp_path):
+    import re
+    win, _a = window
+    panel = _panel(win)
+    panel.set("size", 0)
+    panel.set("custom_format", "A5")
+    panel.set("dpi", 150)
+    panel.draw()
+    sw = panel._window
+    for ext in ("png", "svg", "pdf"):
+        assert sw.save_to(str(tmp_path / f"c.{ext}"))
+        assert (tmp_path / f"c.{ext}").stat().st_size > 1000
+    svg = (tmp_path / "c.svg").read_text()
+    assert svg.count("inkscape:groupmode=\"layer\"") >= 2
+    assert len(re.findall(r"<path d=", svg)) == len(sw._layers.strokes) > 10
+    assert (tmp_path / "c.pdf").read_bytes()[:4] == b"%PDF"
+    sw.close()
