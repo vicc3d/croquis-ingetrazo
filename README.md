@@ -14,8 +14,14 @@ and a little off the ink lines. Where something stands between a face and
 the light, its **cast shadow** goes on in a cool grey. Under the greys, each
 material's **colour** in the nearest marker of a box of twenty (a colour
 with little colour in it gets none), lighter and quicker where the light
-falls, the paper showing between the strokes. Hatching and watercolour
-washes come next.
+falls, the paper showing between the strokes.
+
+Or in **watercolour** instead of marker: washes that run a little past the
+lines and stop short elsewhere, uneven pigment gathered darker at the rim
+where the water dried, the paper's grain showing; the shade a cool wash, the
+cast shadows a deeper blue one. And the shade can be **hatched** in ink,
+with either technique or none: diagonal lines drawn by hand across the
+faces in shade, closer together in the cast shadows.
 
 ## Install
 
@@ -51,6 +57,11 @@ parallel views all work. The settings are kept between sessions.
 - **The colours:** from IngeTrazo's own index of the view's triangles,
   the face each one belongs to and its paint (or its group's; a texture by
   its average colour), sent to the nearest marker.
+- **Watercolour:** each wash's edge wanders with a smooth noise, near its
+  fill only; its density with a broader one and the paper's grain; the rim
+  where it ends is darker.
+- **Hatching:** parallel lines across the whole view, cut to the shaded
+  areas and drawn with the hand's strokes, lighter than the edges.
 - **The hand:** each line overshoots at real corners only (never where it
   passes behind something), bows more the longer it is, wavers, swells and
   thins. Everything random is seeded by the line itself, so the same view

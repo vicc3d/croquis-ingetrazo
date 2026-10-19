@@ -14,11 +14,13 @@ import numpy as np
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
 
+from . import hatch
 from . import marker as mk
 from . import palette as pal
 from . import shadow as sh
 from . import strokes as st
 from . import visibility as vis
+from . import watercolour as wc
 
 PAPER = (247, 243, 234)          # a warm, slightly cream sheet
 INK = (29, 26, 23)               # not black: a warm dark ink
@@ -92,8 +94,11 @@ def _resize(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
         height, width, 4)[:, :, :3].astype(np.float64)
 
 
-def marker_layer(view: View, style: mk.MarkerStyle) -> np.ndarray:
-    """The marker's effect, (H, W, 3) factors to multiply the paper by."""
+def shade_maps(view: View, style: mk.MarkerStyle) -> dict:
+    """What the light does to the view, at the buffer's size: ``values``
+    (0 lit, 1 turned, 2 away, 3 cast shadow, -1 nothing), ``plane`` ids,
+    ``angles`` of the strokes per plane, ``colour`` (a marker per pixel, or
+    None)."""
     light = mk.light_direction(view.camera, view.scene, style.light)
     values, plane, normals, plane_of = mk.face_values(view.index, view.tris,
                                                       view.camera, light)
@@ -107,10 +112,25 @@ def marker_layer(view: View, style: mk.MarkerStyle) -> np.ndarray:
     n_planes = int(plane_of.max()) + 1 if len(plane_of) else 0
     angles = mk.stroke_angles(normals, plane_of, n_planes, view.camera,
                               view.M, view.bw, view.bh)
+    return {"values": values, "plane": plane, "angles": angles, "colour": colour}
+
+
+def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None) -> np.ndarray:
+    """The fill's effect (marker or watercolour), (H, W, 3) factors to
+    multiply the paper by, at the drawing's size."""
+    maps = maps if maps is not None else shade_maps(view, style)
     ones = np.full((view.bh, view.bw, 3), 255.0)
-    factor = mk.paint(ones, values, plane, angles, style,
-                      view.bh / st.REFERENCE_HEIGHT, colour=colour)
+    scale = view.bh / st.REFERENCE_HEIGHT
+    if style.medium == "watercolour":
+        factor = wc.paint(ones, maps["values"], maps["colour"], style, scale)
+    else:
+        factor = mk.paint(ones, maps["values"], maps["plane"], maps["angles"],
+                          style, scale, colour=maps["colour"])
     return _resize(factor, view.width, view.height) / 255.0
+
+
+#: The name it had in 0.3.0.
+marker_layer = fill_layer
 
 
 def draw_strokes(img: QImage, strokes: list, ink=INK) -> None:
@@ -131,14 +151,22 @@ def drawing_size(camera, width: int) -> tuple:
 def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
            marker: mk.MarkerStyle | None = None) -> QImage:
     """The current view as a freehand drawing, ``width`` pixels wide (the
-    height follows the view): paper, grey marker (``marker``, if on), ink.
+    height follows the view): paper, the fill (``marker``: grey and colour
+    marker or watercolour, if on), the ink: hatching, then the lines.
     ``view``: a :class:`View` the caller already made."""
     width, height = drawing_size(viewport.camera, width)
     view = view if view is not None else View(viewport, width, height)
     sheet = paper(width, height)
-    if marker is not None and marker.enabled and len(view.tris):
-        sheet = sheet * marker_layer(view, marker)
+    maps = None
+    if marker is not None and (marker.enabled or marker.hatching) and len(view.tris):
+        maps = shade_maps(view, marker)
+        if marker.enabled:
+            sheet = sheet * fill_layer(view, marker, maps)
     img = to_qimage(sheet)
     kinds = view.outline if style.profile_scale != 1.0 else None
-    draw_strokes(img, st.strokes_for(view.segs, kinds, style, height))
+    strokes = st.strokes_for(view.segs, kinds, style, height)
+    if maps is not None and marker.hatching:
+        strokes = hatch.hatch_strokes(maps["values"], view.scale, height,
+                                      style.hand) + strokes
+    draw_strokes(img, strokes)
     return img

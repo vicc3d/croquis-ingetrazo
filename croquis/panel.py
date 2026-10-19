@@ -68,13 +68,17 @@ class CroquisPanel(QWidget):
         for w in (self.outlines, self.twice, self.breaks):
             lay.addWidget(w)
 
-        lay.addWidget(QLabel(f"<b>{tr('Marker')}</b>"))
+        lay.addWidget(QLabel(f"<b>{tr('Colour and shade')}</b>"))
         m = MarkerStyle()
-        self.marker_on = QCheckBox(tr("Light and shade in grey marker"))
+        self.marker_on = QCheckBox(tr("Colour, light and shade"))
         self.marker_on.setChecked(m.enabled)
         lay.addWidget(self.marker_on)
         mform = QFormLayout()
         mform.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self.medium = QComboBox()
+        self.medium.addItem(tr("Marker"), "marker")
+        self.medium.addItem(tr("Watercolour"), "watercolour")
+        mform.addRow(tr("Technique"), self.medium)
         self.light = QComboBox()
         self.light.addItem(tr("Classic, from the upper left"), "classic")
         self.light.addItem(tr("The model's sun (Shadows panel)"), "sun")
@@ -84,15 +88,20 @@ class CroquisPanel(QWidget):
         self.nib = _slider(10, 60, int(m.width))
         mform.addRow(tr("Nib"), self.nib)
         self.strength = _slider(20, 150, int(m.strength * 100))
-        mform.addRow(tr("Grey"), self.strength)
+        mform.addRow(tr("Intensity"), self.strength)
         lay.addLayout(mform)
         self.shadows = QCheckBox(tr("Cast shadows"))
         self.shadows.setChecked(m.shadows)
         self.colour = QCheckBox(tr("Material colours"))
         self.colour.setChecked(m.colour)
+        self.hatching = QCheckBox(tr("Hatching in the shade (ink)"))
+        self.hatching.setChecked(m.hatching)
         lay.addWidget(self.shadows)
         lay.addWidget(self.colour)
+        lay.addWidget(self.hatching)
         self.marker_on.toggled.connect(self._enable_marker)
+        self.hatching.toggled.connect(self._enable_marker)
+        self.medium.currentIndexChanged.connect(self._enable_marker)
 
         size_row = QFormLayout()
         self.size = QComboBox()
@@ -114,16 +123,20 @@ class CroquisPanel(QWidget):
                   self.nib, self.strength):
             w.valueChanged.connect(self._save)
         for w in (self.outlines, self.twice, self.breaks, self.marker_on,
-                  self.shadows, self.colour):
+                  self.shadows, self.colour, self.hatching):
             w.toggled.connect(self._save)
-        self.size.currentIndexChanged.connect(self._save)
-        self.light.currentIndexChanged.connect(self._save)
-        self._enable_marker(self.marker_on.isChecked())
+        for w in (self.size, self.light, self.medium):
+            w.currentIndexChanged.connect(self._save)
+        self._enable_marker()
 
-    def _enable_marker(self, on: bool) -> None:
-        for w in (self.light, self.offset, self.nib, self.strength,
-                  self.shadows, self.colour):
-            w.setEnabled(on)
+    def _enable_marker(self, *_a) -> None:
+        fill = self.marker_on.isChecked()
+        shade = fill or self.hatching.isChecked()
+        for w in (self.medium, self.offset, self.strength, self.colour):
+            w.setEnabled(fill)
+        self.nib.setEnabled(fill and self.medium.currentData() == "marker")
+        for w in (self.light, self.shadows):
+            w.setEnabled(shade)
 
     # ---- Settings (per user, not in the document) ---------------------------
     def _load(self) -> None:
@@ -155,6 +168,9 @@ class CroquisPanel(QWidget):
         self.strength.setValue(num("marker/strength", self.strength.value()))
         self.shadows.setChecked(flag("marker/shadows", self.shadows.isChecked()))
         self.colour.setChecked(flag("marker/colour", self.colour.isChecked()))
+        self.hatching.setChecked(flag("marker/hatching", self.hatching.isChecked()))
+        i = self.medium.findData(q.value("marker/medium", "marker"))
+        self.medium.setCurrentIndex(max(0, i))
 
     def _save(self, *_a) -> None:
         q = QSettings(*_SETTINGS)
@@ -172,6 +188,8 @@ class CroquisPanel(QWidget):
         q.setValue("marker/strength", self.strength.value())
         q.setValue("marker/shadows", self.shadows.isChecked())
         q.setValue("marker/colour", self.colour.isChecked())
+        q.setValue("marker/hatching", self.hatching.isChecked())
+        q.setValue("marker/medium", self.medium.currentData())
 
     def style(self) -> LineStyle:
         return LineStyle(
@@ -190,7 +208,9 @@ class CroquisPanel(QWidget):
             width=float(self.nib.value()),
             strength=self.strength.value() / 100.0,
             shadows=self.shadows.isChecked(),
-            colour=self.colour.isChecked())
+            colour=self.colour.isChecked(),
+            medium=self.medium.currentData(),
+            hatching=self.hatching.isChecked())
 
     # ---- Drawing ---------------------------------------------------------------
     def draw(self) -> None:

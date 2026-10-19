@@ -31,6 +31,7 @@ DARK_GREY = (150, 144, 136)
 #: Cast shadows: a cool grey, as in a marker sketch.
 SHADOW_GREY = (140, 148, 160)
 LIGHTS = ("classic", "sun")
+MEDIUMS = ("marker", "watercolour")
 
 
 @dataclass
@@ -43,6 +44,8 @@ class MarkerStyle:
     strength: float = 1.0         # 0..1.5, how much grey
     shadows: bool = True          # cast shadows, in cool grey
     colour: bool = True           # the materials' colours
+    medium: str = "marker"        # or "watercolour"
+    hatching: bool = False        # the shade in ink, diagonal lines
 
 
 def triangle_normals(tris: np.ndarray) -> np.ndarray:

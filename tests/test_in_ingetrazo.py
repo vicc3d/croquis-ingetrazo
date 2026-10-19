@@ -309,3 +309,45 @@ def test_painted_faces_get_their_marker(window):
     tris, colour = pal.triangle_colours(vp)
     assert len(tris) == len(colour) > 0
     assert (colour == pal.MARKERS.index((196, 72, 52))).all()
+
+
+def test_hatching_runs_inside_the_shade():
+    from croquis import hatch
+    mask = np.zeros((200, 300), dtype=bool)
+    mask[50:150, 100:200] = True
+    segs = hatch.hatch_segments(mask, 58.0, 8.0, min_len=3)
+    assert len(segs) > 10
+    pts = np.r_[segs[:, :2], segs[:, 2:]]
+    assert (pts[:, 0] >= 99).all() and (pts[:, 0] <= 201).all()
+    assert (pts[:, 1] >= 49).all() and (pts[:, 1] <= 151).all()
+    ang = np.degrees(np.arctan2(-(segs[:, 3] - segs[:, 1]), segs[:, 2] - segs[:, 0])) % 180
+    assert np.allclose(ang, 58.0, atol=1.0)
+
+
+def test_watercolour_stays_near_its_fill_and_has_a_rim():
+    from croquis import marker as mk
+    from croquis import watercolour as wc
+    values = np.full((300, 400), -1, dtype=np.int8)
+    values[100:200, 120:280] = 2
+    out = wc.paint(np.full((300, 400, 3), 255.0), values, None,
+                   mk.MarkerStyle(medium="watercolour", offset=0), 0.4)
+    grey = out.mean(axis=2)
+    assert grey[150, 200] < 235                       # the wash is there
+    assert (grey[:40] > 254).all() and (grey[260:] > 254).all()   # no drops far off
+    # Darker at its rim than in its middle, on average.
+    rim = np.r_[grey[105, 130:270], grey[195, 130:270]].mean()
+    assert rim < grey[140:160, 180:220].mean()
+
+
+def test_the_tab_paints_in_watercolour_with_hatching(window):
+    win, _a = window
+    panel = _panel(win)
+    panel.marker_on.setChecked(True)
+    panel.medium.setCurrentIndex(panel.medium.findData("watercolour"))
+    panel.hatching.setChecked(True)
+    panel.size.setCurrentIndex(0)
+    st_ = panel.marker_style()
+    assert st_.medium == "watercolour" and st_.hatching
+    panel.draw()
+    assert panel._window._img.width() == 1600
+    panel._window.close()

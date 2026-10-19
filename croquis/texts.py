@@ -6,6 +6,12 @@ from __future__ import annotations
 _TEXTS = {
     "es": {
         "Marker": "Rotulador",
+        "Colour and shade": "Color y sombra",
+        "Colour, light and shade": "Color, luz y sombra",
+        "Watercolour": "Acuarela",
+        "Technique": "Técnica",
+        "Intensity": "Intensidad",
+        "Hatching in the shade (ink)": "Rayado en la sombra (tinta)",
         "Cast shadows": "Sombras arrojadas",
         "Material colours": "Colores de los materiales",
         "Light and shade in grey marker": "Luz y sombra con rotulador gris",
@@ -46,6 +52,12 @@ _TEXTS = {
     },
     "pt-BR": {
         "Marker": "Marcador",
+        "Colour and shade": "Cor e sombra",
+        "Colour, light and shade": "Cor, luz e sombra",
+        "Watercolour": "Aquarela",
+        "Technique": "Técnica",
+        "Intensity": "Intensidade",
+        "Hatching in the shade (ink)": "Hachura na sombra (tinta)",
         "Cast shadows": "Sombras projetadas",
         "Material colours": "Cores dos materiais",
         "Light and shade in grey marker": "Luz e sombra com marcador cinza",
