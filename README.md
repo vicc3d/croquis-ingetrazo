@@ -16,12 +16,20 @@ material's **colour** in the nearest marker of a box of twenty (a colour
 with little colour in it gets none), lighter and quicker where the light
 falls, the paper showing between the strokes.
 
+The materials can go in **colour**, in **greys** (each material by how
+light it is, no hue), in **high contrast** (light and shade only, the shade
+and the shadows near black) or not at all. A material's own tone counts:
+a dark one is laid dark whatever the light. Shadows also fall on the
+ground under the model, as in IngeTrazo's view, even when the model has no
+floor. With **natural variation**, each area gets its own turn of the hand.
+
 Or in **watercolour** instead of marker: washes that run a little past the
 lines and stop short elsewhere, uneven pigment gathered darker at the rim
 where the water dried, the paper's grain showing; the shade a cool wash, the
 cast shadows a deeper blue one. And the shade can be **hatched** in ink,
-with either technique or none: diagonal lines drawn by hand across the
-faces in shade, closer together in the cast shadows.
+with either technique or none: lines drawn by hand across the faces in
+shade, closer together in the cast shadows, along each face (up a wall,
+along a board) or at one diagonal, turned as you like.
 
 The sheet is **composed** as a sketcher does: the colour laid where the
 eye goes, on the subject, and thinning out toward the edges to a ragged

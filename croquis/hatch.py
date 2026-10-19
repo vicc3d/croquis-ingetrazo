@@ -53,20 +53,37 @@ def hatch_segments(mask: np.ndarray, angle_deg: float, spacing: float,
     return np.stack([x[s], y[s], x[e], y[e]], axis=1)
 
 
-def hatch_strokes(values: np.ndarray, scale_to_drawing: float, height: int,
+def hatch_strokes(maps: dict, style, scale_to_drawing: float, height: int,
                   hand: float, spacing: float = 11.0) -> list:
-    """The hatching strokes for a view's ``values`` (2 in shade, 3 in a cast
-    shadow), in drawing pixels. ``spacing`` at the reference height."""
+    """The hatching strokes for a view's shade maps (``values`` 2 in shade,
+    3 in a cast shadow), in drawing pixels. Along the faces (the marker's
+    direction on each, as sketchers hatch parallel to the edges) or at one
+    diagonal, turned by ``style.hatch_turn``. ``spacing`` at the reference
+    height."""
+    values = maps["values"]
     s = height / st.REFERENCE_HEIGHT
     sp = spacing * s * scale_to_drawing      # in the values' pixels
+    lstyle = st.LineStyle(hand=min(1.0, hand * 0.8 + 0.15), width=0.9,
+                          profile_scale=1.0, overshoot=0.0,
+                          double_stroke=False, breaks=False, opacity=0.62)
+    turn = float(getattr(style, "hatch_turn", 0.0))
+    if getattr(style, "hatch_along", True):
+        ang = maps["angles"] + maps["jitter"]
+        pl = maps["plane"]
+        # Screen angle per pixel (y down), as degrees with y up, binned.
+        deg = -np.degrees(np.where(pl >= 0, ang[np.clip(pl, 0, len(ang) - 1)], ang[-1]))
+        deg = np.round(((deg + turn) % 180.0) / 4.0) * 4.0
+    else:
+        deg = np.full(values.shape, (ANGLE + turn) % 180.0)
     out = []
-    style = st.LineStyle(hand=min(1.0, hand * 0.8 + 0.15), width=0.9,
-                         profile_scale=1.0, overshoot=0.0,
-                         double_stroke=False, breaks=False, opacity=0.62)
-    for level, factor, ang, seed in ((2, 1.0, ANGLE, 3), (3, 0.62, ANGLE + 4, 5)):
+    for level, factor, seed in ((2, 1.0, 3), (3, 0.62, 5)):
         mask = values == level
-        segs = hatch_segments(mask, ang, sp * factor,
-                              min_len=4.0 * s * scale_to_drawing, seed=seed)
-        if len(segs):
-            out += st.strokes_for(segs / scale_to_drawing, None, style, height)
+        if not mask.any():
+            continue
+        for a in np.unique(deg[mask]):
+            segs = hatch_segments(mask & (deg == a), float(a), sp * factor,
+                                  min_len=4.0 * s * scale_to_drawing,
+                                  seed=seed + int(a))
+            if len(segs):
+                out += st.strokes_for(segs / scale_to_drawing, None, lstyle, height)
     return out

@@ -30,6 +30,12 @@ LIGHT_GREY = (196, 190, 181)
 DARK_GREY = (150, 144, 136)
 #: Cast shadows: a cool grey, as in a marker sketch.
 SHADOW_GREY = (140, 148, 160)
+#: High contrast: the shade and the shadows near black.
+CONTRAST_DARK = (92, 90, 88)
+CONTRAST_SHADOW = (70, 74, 84)
+COLOUR_MODES = ("colour", "greys", "contrast", "none")
+#: A material's lightness below which it reads dark, and mid.
+DARK_TONE, MID_TONE = 0.42, 0.68
 LIGHTS = ("classic", "sun")
 MEDIUMS = ("marker", "watercolour")
 
@@ -43,9 +49,13 @@ class MarkerStyle:
     width: float = 26.0           # the marker's nib
     strength: float = 1.0         # 0..1.5, how much grey
     shadows: bool = True          # cast shadows, in cool grey
-    colour: bool = True           # the materials' colours
+    colour: bool = True           # the materials (see colour_mode)
+    colour_mode: str = "colour"   # colour, greys, contrast or none
     medium: str = "marker"        # or "watercolour"
-    hatching: bool = False        # the shade in ink, diagonal lines
+    hatching: bool = False        # the shade in ink
+    hatch_along: bool = True      # hatching along the faces (or diagonal)
+    hatch_turn: float = 0.0       # degrees added to the hatching
+    natural: bool = False         # each area its own turn of the hand
 
 
 def triangle_normals(tris: np.ndarray) -> np.ndarray:
@@ -105,6 +115,56 @@ def face_values(index: np.ndarray, tris: np.ndarray, camera, light) -> tuple:
     values = np.where(bg, -1, value[ix]).astype(np.int8)
     plane = np.where(bg, -1, plane_of[ix]).astype(np.int64)
     return values, plane, normals, plane_of
+
+
+def _screen_angle(camera, M, width, height, p, d):
+    from . import visibility as vis
+    a = vis.to_clip(np.array([p, p + d]), M)
+    if (a[:, 3] <= 1e-9).any():
+        return None
+    x, y, _q = vis._screen(a, width, height, bool(camera.perspective))
+    return math.atan2(y[1] - y[0], x[1] - x[0])
+
+
+def level_angle(camera, M, width: int, height: int) -> float:
+    """The strokes' direction on a floor or a roof: along whichever of its
+    world axes runs flatter on the paper."""
+    t = camera.target
+    centre = np.array([t.x(), t.y(), t.z()])
+    cand = [c for c in (_screen_angle(camera, M, width, height, centre, np.array([1.0, 0, 0])),
+                        _screen_angle(camera, M, width, height, centre, np.array([0, 1.0, 0])))
+            if c is not None]
+    return min(cand, key=lambda c: abs(math.sin(c))) if cand else 0.0
+
+
+def long_axis_angles(plane: np.ndarray, angles: np.ndarray,
+                     ratio: float = 2.2) -> np.ndarray:
+    """Turn the strokes of every long, narrow area (a board, a slat, a
+    beam as seen) along its length: the main axis of its pixels, when it is
+    ``ratio`` times longer than wide. Squarer areas keep ``angles``."""
+    n = len(angles)
+    ids = plane[plane >= 0]
+    if not len(ids):
+        return angles
+    ys, xs = np.nonzero(plane >= 0)
+    cnt = np.bincount(ids, minlength=n).astype(np.float64)
+    ok = cnt > 30
+    cnt[cnt == 0] = 1.0
+    mx = np.bincount(ids, xs, minlength=n) / cnt
+    my = np.bincount(ids, ys, minlength=n) / cnt
+    dx, dy = xs - mx[ids], ys - my[ids]
+    cxx = np.bincount(ids, dx * dx, minlength=n) / cnt
+    cyy = np.bincount(ids, dy * dy, minlength=n) / cnt
+    cxy = np.bincount(ids, dx * dy, minlength=n) / cnt
+    tr = cxx + cyy
+    det = cxx * cyy - cxy * cxy
+    disc = np.sqrt(np.maximum(tr * tr / 4 - det, 0.0))
+    l1, l2 = tr / 2 + disc, np.maximum(tr / 2 - disc, 1e-9)
+    long = ok & (l1 / l2 > ratio * ratio)
+    axis = 0.5 * np.arctan2(2 * cxy, cxx - cyy)
+    out = angles.copy()
+    out[long[:n]] = axis[:n][long[:n]]
+    return out
 
 
 def stroke_angles(normals: np.ndarray, plane_of: np.ndarray, n_planes: int,
@@ -214,12 +274,34 @@ def _marker_pass(soft: np.ndarray, angle_px: np.ndarray, plane: np.ndarray,
     return np.clip(cover * ink, 0.0, 1.0)
 
 
+def tone_masks(tone, col, mode: str):
+    """``(mid, dark)`` bool images: the faces whose material reads mid or
+    dark. In colour mode only the materials with no marker (greys,
+    blacks); in greys mode, every material."""
+    if tone is None or mode not in ("colour", "greys"):
+        return None, None
+    eligible = tone >= 0
+    if mode == "colour" and col is not None:
+        eligible &= col < 0
+    dark = eligible & (tone < DARK_TONE)
+    mid = eligible & (tone >= DARK_TONE) & (tone < MID_TONE)
+    return mid, dark
+
+
+def colour_mode(style) -> str:
+    return style.colour_mode if style.colour else "none"
+
+
 def paint(base: np.ndarray, values: np.ndarray, plane: np.ndarray,
           angles: np.ndarray, style: MarkerStyle, scale: float,
-          colour: np.ndarray | None = None) -> np.ndarray:
+          colour: np.ndarray | None = None, tone: np.ndarray | None = None,
+          jitter: np.ndarray | None = None) -> np.ndarray:
     """Lay the markers on ``base`` (H, W, 3 floats 0..255): the colours
     first (``colour``: a marker index per pixel, -1 none), the greys over
-    them; ``values`` 0 lit, 1 turned, 2 away, 3 cast shadow, -1 nothing.
+    them; ``values`` 0 lit, 1 turned, 2 away, 3 cast shadow, -1 nothing;
+    ``tone``: the material's lightness per pixel (-1 none), so a dark
+    material is laid dark whatever the light. ``jitter``: per plane, a
+    turn of the strokes (radians), for a less even hand.
     The fills shifted by the offset, with ragged edges; multiplied, as a
     marker's ink is."""
     if not style.enabled:
@@ -229,7 +311,9 @@ def paint(base: np.ndarray, values: np.ndarray, plane: np.ndarray,
     dy = int(round(style.offset * scale * 0.6))
     vals = _shift(values, dx, dy, -1)
     pl = _shift(plane, dx, dy, -1)
-    angle_px = np.where(pl >= 0, angles[np.clip(pl, 0, len(angles) - 1)], 0.0)
+    ang = angles if jitter is None else angles + jitter[:len(angles)]
+    angle_px = np.where(pl >= 0, ang[np.clip(pl, 0, len(ang) - 1)], ang[-1])
+    mode = colour_mode(style)
     rough = _noise((h, w), 18.0 * scale, 11)
     r = max(1, int(round(3.0 * scale)))
     out = base.copy()
@@ -254,9 +338,9 @@ def paint(base: np.ndarray, values: np.ndarray, plane: np.ndarray,
         t = np.array(tint, dtype=np.float64)[None, None, :] / 255.0
         out[box] *= 1.0 - alpha * (1.0 - t)
 
-    if colour is not None and style.colour:
+    col = _shift(colour, dx, dy, -1) if colour is not None else None
+    if col is not None and mode == "colour":
         from .palette import MARKERS
-        col = _shift(colour, dx, dy, -1)
         for k in np.unique(col[col >= 0]):
             here = col == k
             # Where the light falls, the colour goes on lighter and quicker:
@@ -266,10 +350,23 @@ def paint(base: np.ndarray, values: np.ndarray, plane: np.ndarray,
                 0.6, skip=0.4)
             lay((here & ~lit).astype(np.float64), MARKERS[int(k)], 131 + int(k),
                 -0.05, 0.85)
-    passes = [(lambda v: (v == 1) | (v == 2), LIGHT_GREY, 21, 0.0),
-              (lambda v: v == 2, DARK_GREY, 37, 0.12),
-              (lambda v: v == 3, SHADOW_GREY, 53, 0.06),
-              (lambda v: v == 3, SHADOW_GREY, 59, -0.1)]
+    mid, dark = tone_masks(_shift(tone, dx, dy, -1.0) if tone is not None else None,
+                           col, mode)
+    if mid is not None:
+        # The material's own tone: a dark one dark, a mid one grey, lit or not.
+        lay((mid | dark).astype(np.float64), LIGHT_GREY, 71, 0.03, 0.62 * style.strength)
+        lay(dark.astype(np.float64), DARK_GREY, 73, -0.08, 0.7 * style.strength)
+        lay(dark.astype(np.float64), DARK_GREY, 79, 0.1, 0.55 * style.strength)
+    if mode == "contrast":
+        passes = [(lambda v: v == 2, CONTRAST_DARK, 37, 0.12),
+                  (lambda v: v == 2, CONTRAST_DARK, 41, -0.1),
+                  (lambda v: v == 3, CONTRAST_SHADOW, 53, 0.06),
+                  (lambda v: v == 3, CONTRAST_SHADOW, 59, -0.1)]
+    else:
+        passes = [(lambda v: (v == 1) | (v == 2), LIGHT_GREY, 21, 0.0),
+                  (lambda v: v == 2, DARK_GREY, 37, 0.12),
+                  (lambda v: v == 3, SHADOW_GREY, 53, 0.06),
+                  (lambda v: v == 3, SHADOW_GREY, 59, -0.1)]
     for test, grey, seed, turn in passes:
         ind = test(vals).astype(np.float64)
         if not ind.any():

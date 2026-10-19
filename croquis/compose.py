@@ -87,27 +87,67 @@ def fade_map(subject: np.ndarray, scale: float, seed: int = 61) -> np.ndarray:
 
 
 def construction_strokes(segs: np.ndarray, height: int, width: int,
-                         hand: float, seed: int = 17) -> list:
+                         hand: float, seed: int = 17, index=None,
+                         to_buffer: float = 1.0) -> list:
     """Thin, light strokes running on past the ends of some of the longest
-    lines, as a sketcher's guides."""
+    lines, as a sketcher's guides: only over empty paper (``index``, the
+    view's buffer, -1 where no model is; it stops where the model begins),
+    and never two along nearly the same line."""
     if not len(segs):
         return []
     s = height / st.REFERENCE_HEIGHT
     length = np.hypot(segs[:, 2] - segs[:, 0], segs[:, 3] - segs[:, 1])
     order = np.argsort(-length)
     long_ones = [i for i in order if length[i] > 0.10 * height]
-    pick = long_ones[:max(4, min(14, len(long_ones) // 4))]
     rng = random.Random(seed)
+    chosen: list = []                    # (point, unit direction) per line
     out_segs = []
-    for i in pick:
+    limit = max(4, min(14, len(long_ones) // 4))
+
+    def same_line(p, d):
+        for q, e in chosen:
+            if abs(float(d[0] * e[1] - d[1] * e[0])) < 0.07:      # ~4°
+                off = p - q
+                if abs(float(off[0] * e[1] - off[1] * e[0])) < 0.03 * height:
+                    return True
+        return False
+
+    def free_reach(end, d, reach):
+        """How far from ``end`` along ``d`` the paper stays empty."""
+        if index is None:
+            return reach
+        h, w = index.shape
+        steps = np.arange(8.0 * s, reach, 2.0 * s)
+        if not len(steps):
+            return 0.0
+        pts = (end[None, :] + steps[:, None] * d[None, :]) * to_buffer
+        x, y = pts[:, 0].astype(np.int64), pts[:, 1].astype(np.int64)
+        inside = (x >= 0) & (x < w) & (y >= 0) & (y < h)
+        hits = np.zeros(len(steps), dtype=bool)
+        hits[inside] = index[y[inside], x[inside]] >= 0
+        if hits.any():
+            return float(steps[int(np.argmax(hits))]) - 4.0 * s
+        return reach
+
+    for i in long_ones:
+        if len(chosen) >= limit:
+            break
         a, b = segs[i, :2], segs[i, 2:]
         d = (b - a) / length[i]
+        if same_line(a, d):
+            continue
+        made = False
         for end, sign in ((a, -1.0), (b, 1.0)):
             if rng.random() < 0.35:
                 continue
-            reach = length[i] * rng.uniform(0.12, 0.45) + 20 * s
-            far = end + sign * d * reach
-            out_segs.append(np.r_[end + sign * d * 6 * s, far])
+            reach = free_reach(end, sign * d,
+                               length[i] * rng.uniform(0.12, 0.45) + 20 * s)
+            if reach < 18 * s:
+                continue
+            out_segs.append(np.r_[end + sign * d * 6 * s, end + sign * d * reach])
+            made = True
+        if made:
+            chosen.append((a, d))
     if not out_segs:
         return []
     style = st.LineStyle(hand=min(1.0, hand * 0.7 + 0.1), width=0.7,

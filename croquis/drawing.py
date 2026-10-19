@@ -45,10 +45,10 @@ class View:
         self.geom = viewport.hlr_geometry()
         coloured = pal.triangle_colours(viewport)
         if coloured is not None:
-            self.tris, self.colour = coloured
+            self.tris, self.colour, self.tone = coloured
         else:
             self.tris = np.asarray(self.geom[0], dtype=np.float64).reshape(-1, 3, 3)
-            self.colour = None
+            self.colour = self.tone = None
         self.M = vis.clip_matrix(cam)
         self.zbuf, self.index = vis.depth_buffer(self.tris, self.M, self.bw,
                                                  self.bh, bool(cam.perspective))
@@ -97,23 +97,42 @@ def _resize(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
 
 def shade_maps(view: View, style: mk.MarkerStyle) -> dict:
     """What the light does to the view, at the buffer's size: ``values``
-    (0 lit, 1 turned, 2 away, 3 cast shadow, -1 nothing), ``plane`` ids,
-    ``angles`` of the strokes per plane, ``colour`` (a marker per pixel, or
-    None)."""
+    (0 lit, 1 turned, 2 away, 3 cast shadow, -1 nothing; the shadows on
+    the ground under the model too), ``plane`` ids (the ground's is the
+    last), ``angles`` of the strokes per plane, ``jitter`` per plane (a
+    natural hand, or zeros), ``colour`` (a marker per pixel, or None) and
+    ``tone`` (the material's lightness per pixel, or None)."""
     light = mk.light_direction(view.camera, view.scene, style.light)
     values, plane, normals, plane_of = mk.face_values(view.index, view.tris,
                                                       view.camera, light)
-    if style.shadows:
-        cast = sh.cast_shadow(view, normals, light)
-        values = np.where(cast & (values >= 0), 3, values).astype(np.int8)
-    colour = None
-    if style.colour and view.colour is not None:
-        colour = np.where(view.index >= 0,
-                          view.colour[np.clip(view.index, 0, None)], -1)
     n_planes = int(plane_of.max()) + 1 if len(plane_of) else 0
+    if style.shadows and len(view.tris):
+        pack = sh.shadow_map(view.tris, light)
+        cast = sh.cast_shadow(view, normals, light, pack)
+        values = np.where(cast & (values >= 0), 3, values).astype(np.int8)
+        ground = sh.ground_shadow(view, light, pack=pack)
+        values = np.where(ground, 3, values).astype(np.int8)
+        plane = np.where(ground, n_planes, plane)
+    colour = tone = None
+    model = view.index >= 0
+    ix = np.clip(view.index, 0, None)
+    if view.colour is not None:
+        colour = np.where(model, view.colour[ix], -1)
+    if view.tone is not None:
+        tone = np.where(model, view.tone[ix], -1.0)
     angles = mk.stroke_angles(normals, plane_of, n_planes, view.camera,
                               view.M, view.bw, view.bh)
-    return {"values": values, "plane": plane, "angles": angles, "colour": colour}
+    angles = np.r_[angles[:n_planes],
+                   mk.level_angle(view.camera, view.M, view.bw, view.bh)]
+    # Long, narrow areas (boards, slats): along their length.
+    angles = mk.long_axis_angles(np.where(plane < n_planes, plane, -1), angles)
+    if style.natural:
+        rng = np.random.default_rng(97)
+        jitter = rng.normal(0.0, 0.14, len(angles))
+    else:
+        jitter = np.zeros(len(angles))
+    return {"values": values, "plane": plane, "angles": angles,
+            "jitter": jitter, "colour": colour, "tone": tone}
 
 
 def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None,
@@ -125,10 +144,12 @@ def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None,
     ones = np.full((view.bh, view.bw, 3), 255.0)
     scale = view.bh / st.REFERENCE_HEIGHT
     if style.medium == "watercolour":
-        factor = wc.paint(ones, maps["values"], maps["colour"], style, scale)
+        factor = wc.paint(ones, maps["values"], maps["colour"], style, scale,
+                          tone=maps["tone"])
     else:
         factor = mk.paint(ones, maps["values"], maps["plane"], maps["angles"],
-                          style, scale, colour=maps["colour"])
+                          style, scale, colour=maps["colour"], tone=maps["tone"],
+                          jitter=maps["jitter"])
     if fade is not None:
         factor = 255.0 - (255.0 - factor) * fade[:, :, None]
     return _resize(factor, view.width, view.height) / 255.0
@@ -178,11 +199,12 @@ def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
     kinds = view.outline if style.profile_scale != 1.0 else None
     strokes = []
     if comp.construction:
-        strokes += cp.construction_strokes(view.segs, height, width, style.hand)
+        strokes += cp.construction_strokes(view.segs, height, width, style.hand,
+                                           index=view.index, to_buffer=view.scale)
     if comp.ground:
         strokes += cp.ground_strokes(subject, view.scale, height, style.hand)
     if maps is not None and marker.hatching:
-        shade = hatch.hatch_strokes(maps["values"], view.scale, height, style.hand)
+        shade = hatch.hatch_strokes(maps, marker, view.scale, height, style.hand)
         if fade is not None:
             shade = cp.thin_out(shade, fade, view.scale)
         strokes += shade

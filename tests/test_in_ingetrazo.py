@@ -309,9 +309,10 @@ def test_painted_faces_get_their_marker(window):
         f.attrs["color"] = [0.75, 0.3, 0.22]
     vp.notify_scene_changed()
     _app.processEvents()
-    tris, colour = pal.triangle_colours(vp)
+    tris, colour, tone = pal.triangle_colours(vp)
     assert len(tris) == len(colour) > 0
     assert (colour == pal.MARKERS.index((196, 72, 52))).all()
+    assert np.allclose(tone, 0.2126 * 0.75 + 0.7152 * 0.3 + 0.0722 * 0.22, atol=0.01)
 
 
 def test_hatching_runs_inside_the_shade():
@@ -404,3 +405,72 @@ def test_the_tab_draws_with_its_composition(window):
     panel.draw()
     assert panel._window._img.width() == 1600
     panel._window.close()
+
+
+def test_a_model_without_a_floor_still_casts_on_the_ground(window):
+    """Only the box (no slab): the sun's shadow falls on the ground under
+    it, as in IngeTrazo's own view."""
+    from croquis import marker as mk
+    from croquis import shadow as sh
+    win, _a = window
+    vp = win.viewport
+    m = vp.scene.loose_mesh
+    slab = [f for f in m.faces if all(abs(v.position.z()) < 1e-9 for v in f.loop)
+            and len(f.loop) == 4 and abs(f.loop[0].position.x() + 4) < 1e-9]
+    for f in slab:
+        m.remove_face(f) if hasattr(m, "remove_face") else m.faces.remove(f)
+    vp.notify_scene_changed()
+    vp.camera.pitch = math.radians(60)
+    _app.processEvents()
+    w, h = vp.width(), vp.height()
+    view = drawing.View(vp, w, h)
+    light = np.array([1.0, 0.0, 0.6])
+    light /= np.linalg.norm(light)
+    ground = sh.ground_shadow(view, light)
+    px, py, _f = vp.world_to_pixels(np.array([[-1.5, 1, 0], [4, 1, 0]], dtype=float))
+    assert ground[int(py[0]), int(px[0])]          # behind the box, from the sun
+    assert not ground[int(py[1]), int(px[1])]      # in front of it
+    assert not (ground & (view.index >= 0)).any()  # only where no model is
+
+
+def test_long_narrow_areas_run_along_their_length():
+    from croquis import marker as mk
+    plane = np.full((100, 200), -1)
+    plane[40:48, 20:180] = 0                       # a slat, lying flat
+    plane[10:90, 100:110] = 1                      # a post, upright
+    plane[60:90, 20:50] = 2                        # a square: unchanged
+    out = mk.long_axis_angles(plane, np.array([1.0, 0.3, 0.7]))
+    assert abs(math.sin(out[0])) < 0.05            # along the slat
+    assert abs(math.cos(out[1])) < 0.05            # up the post
+    assert out[2] == 0.7
+
+
+def test_construction_lines_stop_where_the_model_begins():
+    from croquis import compose as cp
+    segs = np.array([[100, 500, 700, 500]], dtype=float)
+    index = np.full((1000, 1000), -1)
+    index[480:520, 760:900] = 0                    # something past the line's end
+    out = cp.construction_strokes(segs, 1000, 1000, 0.0, index=index, seed=1)
+    pts = np.vstack([s.outline for s in out]) if out else np.zeros((0, 2))
+    assert not ((pts[:, 0] > 762) & (np.abs(pts[:, 1] - 500) < 15)).any()
+
+
+def test_colour_modes_change_the_fill(window):
+    from croquis import marker as mk
+    win, _a = window
+    vp = win.viewport
+    for f in vp.scene.loose_mesh.faces:
+        f.attrs["color"] = [0.2, 0.2, 0.22]          # a dark grey material
+    vp.notify_scene_changed()
+    _app.processEvents()
+    w, h = drawing.drawing_size(vp.camera, 800)
+    view = drawing.View(vp, w, h)
+    model = view.index >= 0
+    means = {}
+    for mode in ("colour", "greys", "contrast", "none"):
+        st_ = mk.MarkerStyle(colour_mode=mode, shadows=False, offset=0)
+        f = drawing.fill_layer(view, st_)
+        means[mode] = f.mean(axis=2)[model].mean()
+    # A dark material reads dark in colour and greys, not in the others.
+    assert means["colour"] < means["none"] - 0.05
+    assert means["greys"] < means["none"] - 0.05

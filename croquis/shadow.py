@@ -2,6 +2,10 @@
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
 """Cast shadows: which of the pixels the view shows the light cannot reach.
 
+The ground: like IngeTrazo's own view, the shadows also fall on a level
+ground under the model (at its foot, or at zero) even when the model has
+no floor of its own.
+
 A shadow map: the model's triangles drawn into a depth buffer seen from the
 light (a parallel view along it, as the sun's rays are), with the same
 rasteriser as the view (:mod:`.visibility`). Every pixel of the view is
@@ -70,7 +74,75 @@ def pixel_points(view, index: np.ndarray, normals: np.ndarray, tris: np.ndarray)
     return A + t[:, None] * D, rows, cols
 
 
-def cast_shadow(view, normals: np.ndarray, light: np.ndarray) -> np.ndarray:
+def _blocked(P: np.ndarray, M: np.ndarray, smap: np.ndarray) -> np.ndarray:
+    c = P @ M[:, :3].T + M[:, 3]
+    x = ((c[:, 0] * 0.5 + 0.5) * MAP_SIZE).astype(np.int64)
+    y = ((0.5 - c[:, 1] * 0.5) * MAP_SIZE).astype(np.int64)
+    q = -c[:, 2]
+    inside = (x >= 0) & (x < MAP_SIZE) & (y >= 0) & (y < MAP_SIZE)
+    out = np.zeros(len(P), dtype=bool)
+    xi, yi = np.clip(x, 0, MAP_SIZE - 1), np.clip(y, 0, MAP_SIZE - 1)
+    out[inside] = smap[yi[inside], xi[inside]] > q[inside] + 1e-6
+    return out
+
+
+def ground_level(tris: np.ndarray) -> float:
+    """The ground's height: the model's foot, or zero if that is higher
+    (as IngeTrazo's render puts its ground)."""
+    return min(float(tris[:, :, 2].min()), 0.0) if len(tris) else 0.0
+
+
+def shadow_map(tris: np.ndarray, light: np.ndarray):
+    """``(M, texel, smap)``: the light's matrix, a texel's world size and
+    the depth buffer seen from the light, shared by the model's and the
+    ground's shadows."""
+    L = light / max(np.linalg.norm(light), 1e-12)
+    M, texel = light_matrix(tris, L)
+    smap, _sidx = vis.depth_buffer(tris, M, MAP_SIZE, MAP_SIZE, persp=False)
+    return M, texel, smap
+
+
+def ground_shadow(view, light: np.ndarray, reach: float = 4.0, pack=None) -> np.ndarray:
+    """(H, W) bools: the background pixels where the view sees the level
+    ground (:func:`ground_level`), no farther than ``reach`` times the
+    model's size from it, and the model shades it."""
+    index, tris = view.index, view.tris
+    h, w = index.shape
+    out = np.zeros((h, w), dtype=bool)
+    if not len(tris) or light[2] <= 1e-3:
+        return out
+    L = light / max(np.linalg.norm(light), 1e-12)
+    rows, cols = np.nonzero(index < 0)
+    if not len(rows):
+        return out
+    z0 = ground_level(tris)
+    Minv = np.linalg.inv(view.M)
+    nx = (cols + 0.5) / w * 2.0 - 1.0
+    ny = 1.0 - (rows + 0.5) / h * 2.0
+
+    def unproject(z):
+        c = np.stack([nx, ny, np.full_like(nx, z), np.ones_like(nx)], axis=1)
+        p = c @ Minv.T
+        return p[:, :3] / p[:, 3:4]
+
+    A, B = unproject(-1.0), unproject(1.0)
+    dz = B[:, 2] - A[:, 2]
+    t = np.where(np.abs(dz) > 1e-12, (z0 - A[:, 2]) / np.where(np.abs(dz) > 1e-12, dz, 1.0), -1.0)
+    hit = (t > 0.0) & (t < 1.0)
+    P = A + t[:, None] * (B - A)
+    pts = tris.reshape(-1, 3)
+    centre = (pts.min(axis=0) + pts.max(axis=0)) / 2.0
+    size = max(float(np.linalg.norm(pts.max(axis=0) - pts.min(axis=0))), 1e-6)
+    hit &= np.linalg.norm(P[:, :2] - centre[:2], axis=1) < reach * size
+    if not hit.any():
+        return out
+    M, texel, smap = pack if pack is not None else shadow_map(tris, L)
+    P = P[hit] + np.array([0.0, 0.0, 2.0 * texel]) + L * texel
+    out[rows[hit], cols[hit]] = _blocked(P, M, smap)
+    return out
+
+
+def cast_shadow(view, normals: np.ndarray, light: np.ndarray, pack=None) -> np.ndarray:
     """(H, W) bools of the view: the model's pixels the light does not reach
     because something stands between them and it. ``normals``: per
     triangle, turned toward the eye."""
@@ -79,8 +151,7 @@ def cast_shadow(view, normals: np.ndarray, light: np.ndarray) -> np.ndarray:
     if not len(tris):
         return shadow
     L = light / max(np.linalg.norm(light), 1e-12)
-    M, texel = light_matrix(tris, L)
-    smap, _sidx = vis.depth_buffer(tris, M, MAP_SIZE, MAP_SIZE, persp=False)
+    M, texel, smap = pack if pack is not None else shadow_map(tris, L)
     P, rows, cols = pixel_points(view, index, normals, tris)
     if not len(P):
         return shadow
@@ -92,13 +163,5 @@ def cast_shadow(view, normals: np.ndarray, light: np.ndarray) -> np.ndarray:
     # Lifted off its surface by a couple of texels, so a face does not
     # shadow itself.
     P = P + n * (2.0 * texel) + L * (1.0 * texel)
-    c = P @ M[:, :3].T + M[:, 3]
-    x = ((c[:, 0] * 0.5 + 0.5) * MAP_SIZE).astype(np.int64)
-    y = ((0.5 - c[:, 1] * 0.5) * MAP_SIZE).astype(np.int64)
-    q = -c[:, 2]
-    inside = (x >= 0) & (x < MAP_SIZE) & (y >= 0) & (y < MAP_SIZE)
-    blocked = np.zeros(len(P), dtype=bool)
-    xi, yi = np.clip(x, 0, MAP_SIZE - 1), np.clip(y, 0, MAP_SIZE - 1)
-    blocked[inside] = smap[yi[inside], xi[inside]] > q[inside] + 1e-6
-    shadow[rows, cols] = blocked & (facing > 0.02)
+    shadow[rows, cols] = _blocked(P, M, smap) & (facing > 0.02)
     return shadow
