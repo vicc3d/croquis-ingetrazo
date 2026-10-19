@@ -32,9 +32,14 @@ _app = QApplication.instance() or QApplication([])
 
 
 @pytest.fixture
-def window():
+def window(monkeypatch):
+    from core import extensions
+    from core.paths import app_root
     from views.extension_api import ExtensionApp
     from views.main_window import MainWindow
+    # Only IngeTrazo's own plugins: never a copy installed in the user's
+    # plugins folder.
+    monkeypatch.setattr(extensions, "plugin_dirs", lambda: [app_root() / "plugins"])
     win = MainWindow()
     win.resize(1000, 700)
     win.show()
@@ -109,7 +114,7 @@ def test_the_lines_match_the_exact_drawing(window, mode):
     vp.update()
     _app.processEvents()
     w, h = drawing.drawing_size(vp.camera, 1200)
-    segs, _outline = drawing.view_lines(vp, w, h)
+    segs = drawing.View(vp, w, h).segs
     exact = _exact(vp, w, h)
     assert len(segs) and len(exact)
 
@@ -125,7 +130,8 @@ def test_the_box_contour_is_an_outline_and_its_middle_edge_is_not(window):
     win, _a = window
     vp = win.viewport
     w, h = drawing.drawing_size(vp.camera, 1200)
-    segs, outline = drawing.view_lines(vp, w, h)
+    view = drawing.View(vp, w, h)
+    segs, outline = view.segs, view.outline
     sx, sy = w / vp.width(), h / vp.height()
     # The front vertical edge of the box, between two lit faces: no outline.
     px, py, _f = vp.world_to_pixels(np.array([[2, 0, 0.5], [2, 0, 2.5]], dtype=float))
@@ -190,3 +196,69 @@ def test_ingetrazo_loads_the_folder_as_an_extension(monkeypatch):
     finally:
         win._saved_version = win.viewport.scene.version
         win.close()
+
+
+def test_marker_values_follow_the_light(window):
+    """Classic light from the upper left: the box's top stays paper, one of
+    its sides goes grey; the ground (lit from above) stays paper."""
+    from croquis import marker as mk
+    win, _a = window
+    vp = win.viewport
+    w, h = vp.width(), vp.height()
+    view = drawing.View(vp, w, h)
+    light = mk.light_direction(vp.camera, vp.scene, "classic")
+    values, plane, _n, _p = mk.face_values(view.index, view.tris, vp.camera, light)
+
+    def value_at(x, y, z):
+        px, py, _f = vp.world_to_pixels(np.array([[x, y, z]], dtype=float))
+        return int(values[int(py[0]), int(px[0])])
+
+    assert value_at(1, 1, 3) == 0                     # the box's top
+    assert {value_at(2, 1, 1.5), value_at(1, 0, 1.5)} & {1, 2}
+    assert value_at(-2, 4, 0) == 0                    # the ground
+    assert (values[view.index < 0] == -1).all()
+
+
+def test_the_marker_greys_the_model_only_and_off_its_lines(window):
+    from croquis import marker as mk
+    win, _a = window
+    vp = win.viewport
+    w, h = drawing.drawing_size(vp.camera, 1000)
+    view = drawing.View(vp, w, h)
+    on = drawing.marker_layer(view, mk.MarkerStyle(offset=0)).mean(axis=2)
+    assert on.min() < 0.9                             # some grey
+    assert (on[view.index < 0] > 0.99).mean() > 0.97  # the sky stays paper
+    moved = drawing.marker_layer(view, mk.MarkerStyle(offset=20)).mean(axis=2)
+    ys, xs = np.nonzero(on < 0.95)
+    ym, xm = np.nonzero(moved < 0.95)
+    assert xm.mean() > xs.mean() + 5 and ym.mean() > ys.mean() + 3
+
+
+def test_the_sun_light_and_its_night(window):
+    from croquis import marker as mk
+    from core.sun import ShadowSettings
+    win, _a = window
+    vp = win.viewport
+    vp.scene.shadows = ShadowSettings(month=6, day=21, hour=12)
+    sun = mk.light_direction(vp.camera, vp.scene, "sun")
+    assert sun[2] > 0.3                              # noon: high
+    vp.scene.shadows = ShadowSettings(month=6, day=21, hour=23)
+    night = mk.light_direction(vp.camera, vp.scene, "sun")
+    classic = mk.light_direction(vp.camera, vp.scene, "classic")
+    assert np.allclose(night, classic)               # at night, the classic light
+
+
+def test_the_tab_draws_with_the_marker(window):
+    win, _a = window
+    panel = _panel(win)
+    panel.marker_on.setChecked(True)
+    panel.size.setCurrentIndex(0)
+    panel.draw()
+    img = panel._window._img
+    arr = np.frombuffer(img.constBits(), dtype=np.uint8,
+                        count=img.bytesPerLine() * img.height())
+    px = arr.reshape(img.height(), -1)[:, :img.width() * 4].reshape(img.height(), img.width(), 4)
+    grey = (px[:, :, :3].astype(int).sum(axis=2) // 3)
+    # Paper is ~240; marker greys sit between the paper and the ink.
+    assert ((grey > 140) & (grey < 215)).sum() > 2000
+    panel._window.close()

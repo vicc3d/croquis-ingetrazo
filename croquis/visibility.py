@@ -51,17 +51,17 @@ def _screen(c: np.ndarray, width: int, height: int, persp: bool):
     return x, y, q
 
 
-def _clip_triangles(C: np.ndarray) -> np.ndarray:
+def _clip_triangles(C: np.ndarray):
     """Cut (T, 3, 4) clip-space triangles at the near plane: those wholly in
     front pass, those wholly behind go, and a crossing one becomes one or
-    two triangles."""
+    two triangles. Returns them and, for each, the triangle it came from."""
     d = C @ _NEAR
     inside = d >= 0
     keep = inside.all(axis=1)
     out = [C[keep]]
-    for tri, dd, ins in zip(C[~keep & inside.any(axis=1)],
-                            d[~keep & inside.any(axis=1)],
-                            inside[~keep & inside.any(axis=1)]):
+    src = [np.nonzero(keep)[0]]
+    crossing = np.nonzero(~keep & inside.any(axis=1))[0]
+    for t, tri, dd, ins in zip(crossing, C[crossing], d[crossing], inside[crossing]):
         poly = []
         for i in range(3):
             j = (i + 1) % 3
@@ -72,19 +72,22 @@ def _clip_triangles(C: np.ndarray) -> np.ndarray:
                 poly.append(tri[i] + t * (tri[j] - tri[i]))
         for k in range(1, len(poly) - 1):
             out.append(np.array([[poly[0], poly[k], poly[k + 1]]]))
-    return np.concatenate(out) if out else np.empty((0, 3, 4))
+            src.append(np.array([t]))
+    return np.concatenate(out), np.concatenate(src).astype(np.int64)
 
 
 def depth_buffer(tris: np.ndarray, M: np.ndarray, width: int, height: int,
-                 persp: bool) -> np.ndarray:
-    """The nearness q of the nearest surface at every pixel, (H, W); -inf
-    where there is none (the background)."""
+                 persp: bool):
+    """``(zbuf, index)``: the nearness q of the nearest surface at every
+    pixel, (H, W), -inf where there is none (the background); and which of
+    ``tris`` it is, -1 for the background."""
     zbuf = np.full((height, width), -np.inf, dtype=np.float64)
+    index = np.full((height, width), -1, dtype=np.int64)
     if not len(tris):
-        return zbuf
-    C = _clip_triangles(to_clip(tris.reshape(-1, 3), M).reshape(-1, 3, 4))
+        return zbuf, index
+    C, src = _clip_triangles(to_clip(tris.reshape(-1, 3), M).reshape(-1, 3, 4))
     if not len(C):
-        return zbuf
+        return zbuf, index
     X, Y, Q = _screen(C, width, height, persp)
     x0 = np.clip(np.floor(X.min(axis=1)).astype(np.int64), 0, width)
     x1 = np.clip(np.ceil(X.max(axis=1)).astype(np.int64) + 1, 0, width)
@@ -109,8 +112,10 @@ def depth_buffer(tris: np.ndarray, M: np.ndarray, width: int, height: int,
             continue
         q = w0 * Q[t, 0] + w1 * Q[t, 1] + w2 * Q[t, 2]
         block = zbuf[y0[t]:y1[t], x0[t]:x1[t]]
-        np.maximum(block, np.where(inside, q, -np.inf), out=block)
-    return zbuf
+        nearer = inside & (q > block)
+        block[nearer] = q[nearer]
+        index[y0[t]:y1[t], x0[t]:x1[t]][nearer] = src[t]
+    return zbuf, index
 
 
 def _clip_segments(A: np.ndarray, B: np.ndarray):
@@ -157,14 +162,17 @@ def _runs(flags: np.ndarray, ids: np.ndarray):
     return starts, ends
 
 
-def visible_lines(geom, camera, width: int, height: int, step: float = 1.0):
+def visible_lines(geom, camera, width: int, height: int, step: float = 1.0,
+                  zbuf=None):
     """The visible parts of the view's edges, as ``(segs, outline)``: segs
     (N, 4) in pixels (x0, y0, x1, y1), outline (N,) True where the model
-    ends on one side of the line."""
+    ends on one side of the line. ``zbuf``: :func:`depth_buffer`'s, when
+    the caller has it already."""
     persp = bool(camera.perspective)
     M = clip_matrix(camera)
-    tris = np.asarray(geom[0], dtype=np.float64).reshape(-1, 3, 3)
-    zbuf = depth_buffer(tris, M, width, height, persp)
+    if zbuf is None:
+        tris = np.asarray(geom[0], dtype=np.float64).reshape(-1, 3, 3)
+        zbuf, _index = depth_buffer(tris, M, width, height, persp)
     # The farthest surface in each pixel's 3×3: an occluder must cover the
     # whole neighbourhood to hide an edge (an edge's own pixels straddle
     # its faces).

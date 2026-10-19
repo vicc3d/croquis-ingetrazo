@@ -5,6 +5,14 @@ from __future__ import annotations
 
 _TEXTS = {
     "es": {
+        "Marker": "Rotulador",
+        "Light and shade in grey marker": "Luz y sombra con rotulador gris",
+        "Light": "Luz",
+        "Classic, from the upper left": "Clásica, desde arriba a la izquierda",
+        "The model's sun (Shadows panel)": "El sol del modelo (panel Sombras)",
+        "Off the lines": "Desplazado",
+        "Nib": "Punta",
+        "Grey": "Gris",
         "Line": "Línea",
         "Hand": "Mano",
         "Ruler": "Regla",
@@ -35,6 +43,14 @@ _TEXTS = {
             "Dibuja un croquis a mano alzada de la vista actual.",
     },
     "pt-BR": {
+        "Marker": "Marcador",
+        "Light and shade in grey marker": "Luz e sombra com marcador cinza",
+        "Light": "Luz",
+        "Classic, from the upper left": "Clássica, do alto à esquerda",
+        "The model's sun (Shadows panel)": "O sol do modelo (painel Sombras)",
+        "Off the lines": "Deslocado",
+        "Nib": "Ponta",
+        "Grey": "Cinza",
         "Line": "Linha",
         "Hand": "Mão",
         "Ruler": "Régua",

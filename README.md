@@ -6,8 +6,12 @@ way an architect sketches: lines that run past the corners, bow and waver
 with the hand, swell in the middle and thin at the ends, drawn twice now and
 then, with the outlines heavier than the edges inside.
 
-This first version draws the **lines**. Marker fills, the sun's shadows in
-grey marker, hatching and watercolour washes come next.
+Light and shade go on in **grey marker**: each face white, light grey or
+dark grey by how the light falls on it (a classic light from the upper left,
+or the sun of IngeTrazo's Shadows panel), in broad parallel strokes up the
+walls and across the roofs, darker where they overlap, ragged at the ends,
+and a little off the ink lines. Cast shadows, colour markers, hatching and
+watercolour washes come next.
 
 ## Install
 
@@ -33,6 +37,10 @@ parallel views all work. The settings are kept between sessions.
   does not need exact lines.)
 - **Outlines:** a line with the background, or a surface well behind it, on
   one side is where a shape ends, and is drawn heavier.
+- **The marker:** the same depth buffer says which face shows at every
+  pixel; its normal against the light gives the value. The strokes run up
+  a wall (the world's vertical, as drawn) or across a floor along its
+  flatter axis, and are multiplied onto the paper, as a marker's ink is.
 - **The hand:** each line overshoots at real corners only (never where it
   passes behind something), bows more the longer it is, wavers, swells and
   thins. Everything random is seeded by the line itself, so the same view

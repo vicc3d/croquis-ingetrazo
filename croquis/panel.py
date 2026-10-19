@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import drawing
+from .marker import MarkerStyle
 from .strokes import LineStyle
 from .texts import tr
 
@@ -67,6 +68,26 @@ class CroquisPanel(QWidget):
         for w in (self.outlines, self.twice, self.breaks):
             lay.addWidget(w)
 
+        lay.addWidget(QLabel(f"<b>{tr('Marker')}</b>"))
+        m = MarkerStyle()
+        self.marker_on = QCheckBox(tr("Light and shade in grey marker"))
+        self.marker_on.setChecked(m.enabled)
+        lay.addWidget(self.marker_on)
+        mform = QFormLayout()
+        mform.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self.light = QComboBox()
+        self.light.addItem(tr("Classic, from the upper left"), "classic")
+        self.light.addItem(tr("The model's sun (Shadows panel)"), "sun")
+        mform.addRow(tr("Light"), self.light)
+        self.offset = _slider(0, 40, int(m.offset))
+        mform.addRow(tr("Off the lines"), self.offset)
+        self.nib = _slider(10, 60, int(m.width))
+        mform.addRow(tr("Nib"), self.nib)
+        self.strength = _slider(20, 150, int(m.strength * 100))
+        mform.addRow(tr("Grey"), self.strength)
+        lay.addLayout(mform)
+        self.marker_on.toggled.connect(self._enable_marker)
+
         size_row = QFormLayout()
         self.size = QComboBox()
         for w in SIZES:
@@ -83,11 +104,18 @@ class CroquisPanel(QWidget):
         lay.addWidget(self.status)
         lay.addStretch(1)
         self._load()
-        for w in (self.hand, self.weight, self.overshoot):
+        for w in (self.hand, self.weight, self.overshoot, self.offset,
+                  self.nib, self.strength):
             w.valueChanged.connect(self._save)
-        for w in (self.outlines, self.twice, self.breaks):
+        for w in (self.outlines, self.twice, self.breaks, self.marker_on):
             w.toggled.connect(self._save)
         self.size.currentIndexChanged.connect(self._save)
+        self.light.currentIndexChanged.connect(self._save)
+        self._enable_marker(self.marker_on.isChecked())
+
+    def _enable_marker(self, on: bool) -> None:
+        for w in (self.light, self.offset, self.nib, self.strength):
+            w.setEnabled(on)
 
     # ---- Settings (per user, not in the document) ---------------------------
     def _load(self) -> None:
@@ -111,6 +139,12 @@ class CroquisPanel(QWidget):
         self.breaks.setChecked(flag("line/breaks", self.breaks.isChecked()))
         i = self.size.findData(num("size", SIZES[0]))
         self.size.setCurrentIndex(max(0, i))
+        self.marker_on.setChecked(flag("marker/on", self.marker_on.isChecked()))
+        i = self.light.findData(q.value("marker/light", "classic"))
+        self.light.setCurrentIndex(max(0, i))
+        self.offset.setValue(num("marker/offset", self.offset.value()))
+        self.nib.setValue(num("marker/nib", self.nib.value()))
+        self.strength.setValue(num("marker/strength", self.strength.value()))
 
     def _save(self, *_a) -> None:
         q = QSettings(*_SETTINGS)
@@ -121,6 +155,11 @@ class CroquisPanel(QWidget):
         q.setValue("line/twice", self.twice.isChecked())
         q.setValue("line/breaks", self.breaks.isChecked())
         q.setValue("size", self.size.currentData())
+        q.setValue("marker/on", self.marker_on.isChecked())
+        q.setValue("marker/light", self.light.currentData())
+        q.setValue("marker/offset", self.offset.value())
+        q.setValue("marker/nib", self.nib.value())
+        q.setValue("marker/strength", self.strength.value())
 
     def style(self) -> LineStyle:
         return LineStyle(
@@ -131,6 +170,14 @@ class CroquisPanel(QWidget):
             double_stroke=self.twice.isChecked(),
             breaks=self.breaks.isChecked())
 
+    def marker_style(self) -> MarkerStyle:
+        return MarkerStyle(
+            enabled=self.marker_on.isChecked(),
+            light=self.light.currentData(),
+            offset=float(self.offset.value()),
+            width=float(self.nib.value()),
+            strength=self.strength.value() / 100.0)
+
     # ---- Drawing ---------------------------------------------------------------
     def draw(self) -> None:
         vp = self.app.viewport
@@ -139,11 +186,12 @@ class CroquisPanel(QWidget):
         try:
             QApplication.processEvents()
             w, h = drawing.drawing_size(vp.camera, int(self.size.currentData()))
-            lines = drawing.view_lines(vp, w, h)
-            if not len(lines[0]):
+            view = drawing.View(vp, w, h)
+            if not len(view):
                 self.status.setText(tr("Nothing to draw: the view shows no lines."))
                 return
-            img = drawing.sketch(vp, self.style(), w, lines=lines)
+            img = drawing.sketch(vp, self.style(), w, view=view,
+                                 marker=self.marker_style())
         finally:
             QApplication.restoreOverrideCursor()
         self.status.setText("")

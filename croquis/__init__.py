@@ -4,15 +4,15 @@
 
 An extension for IngeTrazo (setup(app), docs/plugins.md): a «Croquis» tab
 in the side tray that draws the current view with the hand of an architect
-sketching, from IngeTrazo's own exact hidden-line drawing. This first
-version draws the lines; marker fills, shadows and washes come next.
+sketching: ink lines, and light and shade in grey marker laid a little off
+the lines. Cast shadows, colour, hatching and washes come next.
 
 Install: copy the ``croquis`` folder into IngeTrazo's plugins folder
 (Extensions ▸ Open plugins folder) and restart IngeTrazo.
 """
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 def setup(app) -> None:
