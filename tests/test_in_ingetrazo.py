@@ -123,7 +123,10 @@ def test_the_lines_match_the_exact_drawing(window, mode):
         return (ss[:, None, :2] + t * (ss[:, None, 2:] - ss[:, None, :2])).reshape(-1, 2)
 
     assert np.percentile(_dist_to(sample(segs), exact), 99) < 3.0
-    assert np.percentile(_dist_to(sample(exact), segs), 97) < 3.0
+    # The exact drawing may run past the picture's edge: only what shows.
+    ex = sample(exact)
+    ex = ex[(ex[:, 0] >= 0) & (ex[:, 0] <= w) & (ex[:, 1] >= 0) & (ex[:, 1] <= h)]
+    assert np.percentile(_dist_to(ex, segs), 97) < 3.0
 
 
 def test_the_box_contour_is_an_outline_and_its_middle_edge_is_not(window):
@@ -348,6 +351,56 @@ def test_the_tab_paints_in_watercolour_with_hatching(window):
     panel.size.setCurrentIndex(0)
     st_ = panel.marker_style()
     assert st_.medium == "watercolour" and st_.hatching
+    panel.draw()
+    assert panel._window._img.width() == 1600
+    panel._window.close()
+
+
+def test_the_ground_is_not_the_subject_and_the_colour_fades_round_it(window):
+    from croquis import compose as cp
+    win, _a = window
+    vp = win.viewport
+    w, h = vp.width(), vp.height()
+    view = drawing.View(vp, w, h)
+    subject = cp.subject_mask(view.index, view.tris)
+
+    def pix(x, y, z):
+        px, py, _f = vp.world_to_pixels(np.array([[x, y, z]], dtype=float))
+        return int(py[0]), int(px[0])
+
+    assert subject[pix(1, 0.01, 1.5)]                 # the box
+    hh, ww = subject.shape
+    ground = [pix(x, y, 0) for x in (-3, 1, 5) for y in (-3, 5)]
+    from croquis.marker import triangle_normals
+    level = np.abs(triangle_normals(view.tris)[:, 2]) > 0.97
+    flat_z = view.tris[:, 0, 2]
+    ground = [(r, c) for r, c in ground if 0 <= r < hh and 0 <= c < ww
+              and view.index[r, c] >= 0 and level[view.index[r, c]]
+              and abs(flat_z[view.index[r, c]]) < 1e-6]    # not hidden by the box
+    assert ground and not any(subject[r, c] for r, c in ground)   # the slab
+    fade = cp.fade_map(subject, 1.0)
+    assert fade[pix(1, 1, 1.5)] == 1.0                # whole on the box
+    assert fade.min() < 0.5                           # gone far from it
+
+
+def test_construction_lines_run_past_the_long_lines():
+    from croquis import compose as cp
+    segs = np.array([[100, 500, 700, 500], [700, 500, 700, 120]], dtype=float)
+    out = cp.construction_strokes(segs, 1000, 1000, 0.5)
+    assert out
+    pts = np.vstack([s.outline for s in out])
+    beyond = (pts[:, 0] > 705) | (pts[:, 0] < 95) | (pts[:, 1] < 115)
+    assert beyond.any()
+    assert all(s.opacity < 0.5 for s in out)
+
+
+def test_the_tab_draws_with_its_composition(window):
+    win, _a = window
+    panel = _panel(win)
+    panel.ground.setChecked(True)
+    c = panel.composition()
+    assert c.ground and c.unfinished and c.construction
+    panel.size.setCurrentIndex(0)
     panel.draw()
     assert panel._window._img.width() == 1600
     panel._window.close()

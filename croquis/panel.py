@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import drawing
+from .compose import Composition
 from .marker import MarkerStyle
 from .strokes import LineStyle
 from .texts import tr
@@ -103,6 +104,17 @@ class CroquisPanel(QWidget):
         self.hatching.toggled.connect(self._enable_marker)
         self.medium.currentIndexChanged.connect(self._enable_marker)
 
+        lay.addWidget(QLabel(f"<b>{tr('Composition')}</b>"))
+        c = Composition()
+        self.unfinished = QCheckBox(tr("Unfinished edges (colour fades out)"))
+        self.unfinished.setChecked(c.unfinished)
+        self.construction = QCheckBox(tr("Construction lines"))
+        self.construction.setChecked(c.construction)
+        self.ground = QCheckBox(tr("Ground strokes"))
+        self.ground.setChecked(c.ground)
+        for w in (self.unfinished, self.construction, self.ground):
+            lay.addWidget(w)
+
         size_row = QFormLayout()
         self.size = QComboBox()
         for w in SIZES:
@@ -123,7 +135,8 @@ class CroquisPanel(QWidget):
                   self.nib, self.strength):
             w.valueChanged.connect(self._save)
         for w in (self.outlines, self.twice, self.breaks, self.marker_on,
-                  self.shadows, self.colour, self.hatching):
+                  self.shadows, self.colour, self.hatching, self.unfinished,
+                  self.construction, self.ground):
             w.toggled.connect(self._save)
         for w in (self.size, self.light, self.medium):
             w.currentIndexChanged.connect(self._save)
@@ -171,6 +184,9 @@ class CroquisPanel(QWidget):
         self.hatching.setChecked(flag("marker/hatching", self.hatching.isChecked()))
         i = self.medium.findData(q.value("marker/medium", "marker"))
         self.medium.setCurrentIndex(max(0, i))
+        self.unfinished.setChecked(flag("compose/unfinished", self.unfinished.isChecked()))
+        self.construction.setChecked(flag("compose/construction", self.construction.isChecked()))
+        self.ground.setChecked(flag("compose/ground", self.ground.isChecked()))
 
     def _save(self, *_a) -> None:
         q = QSettings(*_SETTINGS)
@@ -190,6 +206,9 @@ class CroquisPanel(QWidget):
         q.setValue("marker/colour", self.colour.isChecked())
         q.setValue("marker/hatching", self.hatching.isChecked())
         q.setValue("marker/medium", self.medium.currentData())
+        q.setValue("compose/unfinished", self.unfinished.isChecked())
+        q.setValue("compose/construction", self.construction.isChecked())
+        q.setValue("compose/ground", self.ground.isChecked())
 
     def style(self) -> LineStyle:
         return LineStyle(
@@ -199,6 +218,11 @@ class CroquisPanel(QWidget):
             overshoot=self.overshoot.value() / 100.0,
             double_stroke=self.twice.isChecked(),
             breaks=self.breaks.isChecked())
+
+    def composition(self) -> Composition:
+        return Composition(unfinished=self.unfinished.isChecked(),
+                           construction=self.construction.isChecked(),
+                           ground=self.ground.isChecked())
 
     def marker_style(self) -> MarkerStyle:
         return MarkerStyle(
@@ -225,7 +249,8 @@ class CroquisPanel(QWidget):
                 self.status.setText(tr("Nothing to draw: the view shows no lines."))
                 return
             img = drawing.sketch(vp, self.style(), w, view=view,
-                                 marker=self.marker_style())
+                                 marker=self.marker_style(),
+                                 composition=self.composition())
         finally:
             QApplication.restoreOverrideCursor()
         self.status.setText("")

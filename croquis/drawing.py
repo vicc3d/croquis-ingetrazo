@@ -14,6 +14,7 @@ import numpy as np
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
 
+from . import compose as cp
 from . import hatch
 from . import marker as mk
 from . import palette as pal
@@ -115,9 +116,11 @@ def shade_maps(view: View, style: mk.MarkerStyle) -> dict:
     return {"values": values, "plane": plane, "angles": angles, "colour": colour}
 
 
-def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None) -> np.ndarray:
+def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None,
+               fade: np.ndarray | None = None) -> np.ndarray:
     """The fill's effect (marker or watercolour), (H, W, 3) factors to
-    multiply the paper by, at the drawing's size."""
+    multiply the paper by, at the drawing's size; ``fade`` (at the
+    buffer's size) thins it out toward the edges."""
     maps = maps if maps is not None else shade_maps(view, style)
     ones = np.full((view.bh, view.bw, 3), 255.0)
     scale = view.bh / st.REFERENCE_HEIGHT
@@ -126,6 +129,8 @@ def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None) -> n
     else:
         factor = mk.paint(ones, maps["values"], maps["plane"], maps["angles"],
                           style, scale, colour=maps["colour"])
+    if fade is not None:
+        factor = 255.0 - (255.0 - factor) * fade[:, :, None]
     return _resize(factor, view.width, view.height) / 255.0
 
 
@@ -149,24 +154,38 @@ def drawing_size(camera, width: int) -> tuple:
 
 
 def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
-           marker: mk.MarkerStyle | None = None) -> QImage:
+           marker: mk.MarkerStyle | None = None,
+           composition: cp.Composition | None = None) -> QImage:
     """The current view as a freehand drawing, ``width`` pixels wide (the
     height follows the view): paper, the fill (``marker``: grey and colour
     marker or watercolour, if on), the ink: hatching, then the lines.
     ``view``: a :class:`View` the caller already made."""
     width, height = drawing_size(viewport.camera, width)
     view = view if view is not None else View(viewport, width, height)
+    comp = composition if composition is not None else cp.Composition(
+        unfinished=False, construction=False, ground=False)
     sheet = paper(width, height)
+    subject = cp.subject_mask(view.index, view.tris) \
+        if (comp.unfinished or comp.ground) else None
+    fade = (cp.fade_map(subject, view.bh / st.REFERENCE_HEIGHT)
+            if comp.unfinished else None)
     maps = None
     if marker is not None and (marker.enabled or marker.hatching) and len(view.tris):
         maps = shade_maps(view, marker)
         if marker.enabled:
-            sheet = sheet * fill_layer(view, marker, maps)
+            sheet = sheet * fill_layer(view, marker, maps, fade)
     img = to_qimage(sheet)
     kinds = view.outline if style.profile_scale != 1.0 else None
-    strokes = st.strokes_for(view.segs, kinds, style, height)
+    strokes = []
+    if comp.construction:
+        strokes += cp.construction_strokes(view.segs, height, width, style.hand)
+    if comp.ground:
+        strokes += cp.ground_strokes(subject, view.scale, height, style.hand)
     if maps is not None and marker.hatching:
-        strokes = hatch.hatch_strokes(maps["values"], view.scale, height,
-                                      style.hand) + strokes
+        shade = hatch.hatch_strokes(maps["values"], view.scale, height, style.hand)
+        if fade is not None:
+            shade = cp.thin_out(shade, fade, view.scale)
+        strokes += shade
+    strokes += st.strokes_for(view.segs, kinds, style, height)
     draw_strokes(img, strokes)
     return img

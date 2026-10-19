@@ -6,6 +6,10 @@ from __future__ import annotations
 _TEXTS = {
     "es": {
         "Marker": "Rotulador",
+        "Composition": "Composición",
+        "Unfinished edges (colour fades out)": "Bordes sin terminar (el color se desvanece)",
+        "Construction lines": "Líneas de construcción",
+        "Ground strokes": "Trazos de suelo",
         "Colour and shade": "Color y sombra",
         "Colour, light and shade": "Color, luz y sombra",
         "Watercolour": "Acuarela",
@@ -52,6 +56,10 @@ _TEXTS = {
     },
     "pt-BR": {
         "Marker": "Marcador",
+        "Composition": "Composição",
+        "Unfinished edges (colour fades out)": "Bordas inacabadas (a cor se desvanece)",
+        "Construction lines": "Linhas de construção",
+        "Ground strokes": "Traços de chão",
         "Colour and shade": "Cor e sombra",
         "Colour, light and shade": "Cor, luz e sombra",
         "Watercolour": "Aquarela",

@@ -23,6 +23,13 @@ cast shadows a deeper blue one. And the shade can be **hatched** in ink,
 with either technique or none: diagonal lines drawn by hand across the
 faces in shade, closer together in the cast shadows.
 
+The sheet is **composed** as a sketcher does: the colour laid where the
+eye goes, on the subject, and thinning out toward the edges to a ragged
+limit (the ground is not the subject: its largest flat plane is left out
+when it takes much of the view); some long lines running on past the
+drawing as construction lines; and, if wanted, loose strokes fanning out
+on the ground under the subject.
+
 ## Install
 
 1. In IngeTrazo, **Extensions ▸ Open plugins folder**.
