@@ -1,0 +1,192 @@
+"""The extension inside a real IngeTrazo (offscreen): its tab, the lines of
+the view where the viewport draws them, outlines, and a drawing. Needs an
+IngeTrazo checkout and its Python environment:
+
+    INGETRAZO_SRC=~/src/ingetrazo QT_QPA_PLATFORM=offscreen \\
+        <ingetrazo venv>/bin/python -m pytest tests
+"""
+from __future__ import annotations
+
+import math
+import os
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+_SRC = os.environ.get("INGETRAZO_SRC")
+if not _SRC or not (Path(_SRC) / "core" / "hlr.py").is_file():
+    pytest.skip("set INGETRAZO_SRC to an IngeTrazo checkout", allow_module_level=True)
+sys.path.insert(0, _SRC)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from PySide6.QtGui import QVector3D as V  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+import croquis  # noqa: E402
+from croquis import drawing  # noqa: E402
+from croquis import strokes as st  # noqa: E402
+
+_app = QApplication.instance() or QApplication([])
+
+
+@pytest.fixture
+def window():
+    from views.extension_api import ExtensionApp
+    from views.main_window import MainWindow
+    win = MainWindow()
+    win.resize(1000, 700)
+    win.show()
+    _app.processEvents()
+    m = win.viewport.scene.loose_mesh
+    m.add_face([V(-4, -4, 0), V(6, -4, 0), V(6, 6, 0), V(-4, 6, 0)])
+    b = [V(0, 0, 0), V(2, 0, 0), V(2, 2, 0), V(0, 2, 0)]
+    t = [V(p.x(), p.y(), 3) for p in b]
+    m.add_face(t)
+    for i in range(4):
+        m.add_face([b[i], b[(i + 1) % 4], t[(i + 1) % 4], t[i]])
+    win.viewport.notify_scene_changed()
+    cam = win.viewport.camera
+    cam.target = V(1, 1, 1)
+    cam.distance = 16
+    cam.yaw = math.radians(-60)
+    cam.pitch = math.radians(28)
+    _app.processEvents()
+    app = ExtensionApp(win, "croquis")
+    croquis.setup(app)
+    yield win, app
+    win._saved_version = win.viewport.scene.version
+    win.close()
+
+
+def _panel(win):
+    for dock in win._extension_docks:
+        if type(dock.widget()).__name__ == "CroquisPanel":
+            return dock.widget()
+    raise AssertionError("no Croquis tab")
+
+
+def _exact(vp, w, h):
+    """IngeTrazo's exact hidden-line drawing of the view, in pixels."""
+    from core import hlr
+    cam = vp.camera
+    geom = vp.hlr_geometry()
+    if cam.perspective:
+        segs = hlr.hlr_perspective(vp.scene, cam, geometry=geom)
+        m = cam.projection_matrix() * cam.view_matrix()
+        M = np.array(m.data(), dtype=np.float64).reshape(4, 4, order="F")
+        t = cam.target
+        depth = float(M[3, :3] @ np.array([t.x(), t.y(), t.z()]) + M[3, 3])
+    else:
+        segs = hlr.hlr_drawing(vp.scene, cam, geometry=geom, profiles=False,
+                               fills=False).segs
+        depth = cam.distance
+    half_h = depth * math.tan(math.radians(cam.fov_deg) / 2.0)
+    half_w = half_h * cam.aspect
+    segs = np.asarray(segs, dtype=np.float64).reshape(-1, 4)
+    out = np.empty_like(segs)
+    out[:, 0::2] = (segs[:, 0::2] / half_w + 1.0) * 0.5 * w
+    out[:, 1::2] = (1.0 - segs[:, 1::2] / half_h) * 0.5 * h
+    return out
+
+
+def _dist_to(points, segs):
+    a, b = segs[None, :, :2], segs[None, :, 2:]
+    p = points[:, None, :]
+    d = b - a
+    t = np.clip(((p - a) * d).sum(-1) / np.maximum((d * d).sum(-1), 1e-12), 0, 1)
+    return np.hypot(*(p - (a + t[..., None] * d)).transpose(2, 0, 1)).min(axis=1)
+
+
+@pytest.mark.parametrize("mode", ["perspective", "parallel", "two_point"])
+def test_the_lines_match_the_exact_drawing(window, mode):
+    """Against IngeTrazo's exact hidden-line pass: every drawn point lies
+    on an exact line, and the drawing covers the exact lines."""
+    win, _app2 = window
+    vp = win.viewport
+    vp.camera.set_projection(mode)
+    vp.update()
+    _app.processEvents()
+    w, h = drawing.drawing_size(vp.camera, 1200)
+    segs, _outline = drawing.view_lines(vp, w, h)
+    exact = _exact(vp, w, h)
+    assert len(segs) and len(exact)
+
+    def sample(ss, k=12):
+        t = np.linspace(0, 1, k)[None, :, None]
+        return (ss[:, None, :2] + t * (ss[:, None, 2:] - ss[:, None, :2])).reshape(-1, 2)
+
+    assert np.percentile(_dist_to(sample(segs), exact), 99) < 3.0
+    assert np.percentile(_dist_to(sample(exact), segs), 97) < 3.0
+
+
+def test_the_box_contour_is_an_outline_and_its_middle_edge_is_not(window):
+    win, _a = window
+    vp = win.viewport
+    w, h = drawing.drawing_size(vp.camera, 1200)
+    segs, outline = drawing.view_lines(vp, w, h)
+    sx, sy = w / vp.width(), h / vp.height()
+    # The front vertical edge of the box, between two lit faces: no outline.
+    px, py, _f = vp.world_to_pixels(np.array([[2, 0, 0.5], [2, 0, 2.5]], dtype=float))
+    a = np.array([px[0] * sx, py[0] * sy])
+    b = np.array([px[1] * sx, py[1] * sy])
+    mid = (segs[:, :2] + segs[:, 2:]) / 2
+    e = b - a
+    dist = np.abs(e[0] * (mid[:, 1] - a[1]) - e[1] * (mid[:, 0] - a[0])) / np.linalg.norm(e)
+    k = int(np.argmin(dist))
+    assert dist[k] < 2.0 and not outline[k]
+    assert outline.sum() >= 6               # the box's contour, the slab's edge
+
+
+def test_a_wall_split_at_its_vertices_is_one_stroke():
+    from croquis import visibility as vis
+    segs = np.array([[0, 0, 50, 0], [50, 0, 120, 0.2], [120, 0.2, 200, 0.3],
+                     [200, 0.3, 200, 100]], dtype=float)
+    merged, outline = vis.merge_collinear(segs, np.array([True, True, False, True]), tol=1.5)
+    assert len(merged) == 2
+    long = merged[np.argmax(np.hypot(merged[:, 2] - merged[:, 0], merged[:, 3] - merged[:, 1]))]
+    assert sorted([long[0], long[2]]) == [0, 200]
+    assert outline.all()
+
+
+def test_the_tab_draws_the_view(window, monkeypatch):
+    win, _a = window
+    panel = _panel(win)
+    panel.size.setCurrentIndex(0)
+    panel.draw()
+    img = panel._window._img
+    assert img.width() == 1600
+    arr = np.frombuffer(img.constBits(), dtype=np.uint8,
+                        count=img.bytesPerLine() * img.height())
+    # Some ink on the paper: pixels much darker than the sheet.
+    assert (arr.reshape(img.height(), -1)[:, 0:img.width() * 4:4] < 120).sum() > 500
+    panel._window.close()
+
+
+def test_an_empty_view_says_so(window):
+    win, _a = window
+    vp = win.viewport
+    vp.camera.target = V(500, 500, 500)
+    vp.camera.distance = 2
+    _app.processEvents()
+    panel = _panel(win)
+    panel.draw()
+    assert panel._window is None
+    assert panel.status.text()
+
+
+def test_ingetrazo_loads_the_folder_as_an_extension(monkeypatch):
+    """Dropped in the plugins folder as is, IngeTrazo loads it (a package
+    with relative imports) and the tab appears."""
+    from core import extensions
+    from views.main_window import MainWindow
+    root = Path(__file__).resolve().parents[1]
+    monkeypatch.setattr(extensions, "plugin_dirs", lambda: [root])
+    win = MainWindow()
+    try:
+        names = [type(d.widget()).__name__ for d in win._extension_docks]
+        assert "CroquisPanel" in names
+    finally:
+        win._saved_version = win.viewport.scene.version
+        win.close()

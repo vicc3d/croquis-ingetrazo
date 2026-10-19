@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
+"""The extension's own words (IngeTrazo's catalogues stay IngeTrazo's)."""
+from __future__ import annotations
+
+_TEXTS = {
+    "es": {
+        "Line": "Línea",
+        "Hand": "Mano",
+        "Ruler": "Regla",
+        "Loose": "Suelta",
+        "Line weight": "Grosor",
+        "Overshoot": "Sobrepaso",
+        "Heavier outlines": "Contornos más gruesos",
+        "Draw lines twice": "Repasar líneas",
+        "Lift the pen on long lines": "Cortar las líneas largas",
+        "Size": "Tamaño",
+        "{w} px wide": "{w} px de ancho",
+        "Draw the view": "Dibujar la vista",
+        "Draws what the viewport shows, as a freehand sketch on paper. "
+        "Frame the view first.":
+            "Dibuja lo que muestra la vista, como un croquis a mano alzada "
+            "sobre papel. Encuadra la vista antes.",
+        "Drawing…": "Dibujando…",
+        "Nothing to draw: the view shows no lines.":
+            "Nada que dibujar: la vista no muestra líneas.",
+        "Save PNG…": "Guardar PNG…",
+        "Copy": "Copiar",
+        "Close": "Cerrar",
+        "Save the sketch": "Guardar el croquis",
+        "Saved: {path}": "Guardado: {path}",
+        "Could not save {path}": "No se pudo guardar {path}",
+        "Copied to the clipboard": "Copiado al portapapeles",
+        "Draw a freehand sketch of the current view.":
+            "Dibuja un croquis a mano alzada de la vista actual.",
+    },
+    "pt-BR": {
+        "Line": "Linha",
+        "Hand": "Mão",
+        "Ruler": "Régua",
+        "Loose": "Solta",
+        "Line weight": "Espessura",
+        "Overshoot": "Ultrapasse",
+        "Heavier outlines": "Contornos mais grossos",
+        "Draw lines twice": "Repassar linhas",
+        "Lift the pen on long lines": "Interromper as linhas longas",
+        "Size": "Tamanho",
+        "{w} px wide": "{w} px de largura",
+        "Draw the view": "Desenhar a vista",
+        "Draws what the viewport shows, as a freehand sketch on paper. "
+        "Frame the view first.":
+            "Desenha o que a vista mostra, como um croqui à mão livre sobre "
+            "papel. Enquadre a vista antes.",
+        "Drawing…": "Desenhando…",
+        "Nothing to draw: the view shows no lines.":
+            "Nada para desenhar: a vista não mostra linhas.",
+        "Save PNG…": "Salvar PNG…",
+        "Copy": "Copiar",
+        "Close": "Fechar",
+        "Save the sketch": "Salvar o croqui",
+        "Saved: {path}": "Salvo: {path}",
+        "Could not save {path}": "Não foi possível salvar {path}",
+        "Copied to the clipboard": "Copiado para a área de transferência",
+        "Draw a freehand sketch of the current view.":
+            "Desenha um croqui à mão livre da vista atual.",
+    },
+}
+
+
+def tr(text: str, **kw) -> str:
+    try:
+        from core.i18n import current_language
+        lang = current_language()
+    except Exception:                    # noqa: BLE001 (outside IngeTrazo)
+        lang = "en"
+    out = _TEXTS.get(lang, {}).get(text, text)
+    return out.format(**kw) if kw else out
