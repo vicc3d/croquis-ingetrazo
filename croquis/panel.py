@@ -291,6 +291,13 @@ class CroquisPanel(QWidget):
         nat = self._toggle("natural", None, tr("Natural variation"))
         nat.setToolButtonStyle(Qt.ToolButtonTextOnly)
         fl.addWidget(nat, 5, 0, 1, 2)
+        self.reset_btn = QPushButton(tr("Reset fine settings"))
+        self.reset_btn.setObjectName("reset")
+        self.reset_btn.setCursor(Qt.PointingHandCursor)
+        self.reset_btn.setToolTip(tr("Back to the usual line weight, overshoot, "
+                                     "offset, nib and intensity"))
+        self.reset_btn.clicked.connect(self.reset_fine)
+        fl.addWidget(self.reset_btn, 6, 0, 1, 2)
         self.fine.setVisible(False)
         t.body.addWidget(self.fine)
         self.fold.toggled.connect(self._unfold)
@@ -374,6 +381,16 @@ class CroquisPanel(QWidget):
         if self._loading or self.s.get(key) == value:
             return
         self.s[key] = value
+        self.s["preset"] = ps.matching_preset(self.s)
+        self._write()
+        self._show_state()
+
+    FINE = ("weight", "overshoot", "offset", "nib", "strength", "natural")
+
+    def reset_fine(self) -> None:
+        """The fine settings back to their usual values; the rest is kept."""
+        for key in self.FINE:
+            self.s[key] = ps.DEFAULTS[key]
         self.s["preset"] = ps.matching_preset(self.s)
         self._write()
         self._show_state()

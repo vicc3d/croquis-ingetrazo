@@ -5,6 +5,8 @@ from __future__ import annotations
 
 _TEXTS = {
     "es": {
+        "Reset fine settings": "Restablecer ajustes finos",
+        "Back to the usual line weight, overshoot, offset, nib and intensity": "Vuelve al grosor, sobrepaso, desplazado, punta e intensidad habituales",
         "Style": "Estilo",
         "Custom": "Personalizado",
         "Ink": "Tinta",
@@ -89,6 +91,8 @@ _TEXTS = {
             "Dibuja un croquis a mano alzada de la vista actual.",
     },
     "pt-BR": {
+        "Reset fine settings": "Restaurar ajustes finos",
+        "Back to the usual line weight, overshoot, offset, nib and intensity": "Volta à espessura, ultrapasse, deslocamento, ponta e intensidade habituais",
         "Style": "Estilo",
         "Custom": "Personalizado",
         "Ink": "Tinta",

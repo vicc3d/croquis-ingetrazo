@@ -555,3 +555,20 @@ def test_presets_are_complete_and_clean_reads_anything():
         ps.line_style(s), ps.marker_style(s), ps.composition(s)
     assert ps.clean("not json") == ps.DEFAULTS
     assert ps.clean({"size": "x", "hatching": 1})["size"] == ps.DEFAULTS["size"]
+
+
+def test_reset_puts_the_fine_settings_back_and_keeps_the_rest(window):
+    from croquis import presets as ps
+    win, _a = window
+    panel = _panel(win)
+    panel.cards["watercolour"].click()
+    panel.sliders["weight"].setValue(35)
+    panel.sliders["strength"].setValue(40)
+    panel.toggles["natural"].click()
+    panel.hand.setValue(90)
+    panel.reset_btn.click()
+    for key in panel.FINE:
+        assert panel.s[key] == ps.DEFAULTS[key]
+    assert panel.sliders["weight"].value() == ps.DEFAULTS["weight"]
+    assert panel.s["hand"] == 90 and panel.s["technique"] == "watercolour"
+    assert panel.s["preset"] == "watercolour"

@@ -99,6 +99,9 @@ QToolButton#chip:checked {{ background: {on_bg.name()}; border-color: {acc.name(
   color: {text.name()}; }}
 QToolButton#fold {{ border: none; background: transparent; color: {muted.name()};
   font-size: 12px; text-align: left; }}
+QPushButton#reset {{ background: transparent; color: {muted.name()};
+  border: 1px solid {border.name()}; border-radius: 8px; padding: 5px 8px; font-size: 11px; }}
+QPushButton#reset:hover {{ background: {hover.name()}; color: {text.name()}; }}
 QPushButton#draw {{ background: {acc.name()}; color: {acc_text}; border: none;
   border-radius: 8px; padding: 9px 10px; font-size: 13px; }}
 QPushButton#draw:hover {{ background: {acc.lighter(112).name()}; }}
