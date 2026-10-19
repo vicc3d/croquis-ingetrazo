@@ -18,6 +18,7 @@ from . import compose as cp
 from . import hatch
 from . import ink
 from . import marker as mk
+from . import paper as pp
 from . import palette as pal
 from . import shadow as sh
 from . import strokes as st
@@ -181,7 +182,8 @@ def drawing_size(camera, width: int) -> tuple:
 
 def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
            marker: mk.MarkerStyle | None = None,
-           composition: cp.Composition | None = None) -> QImage:
+           composition: cp.Composition | None = None,
+           paper_kind: str = "cream", paper_image: str = "") -> QImage:
     """The current view as a freehand drawing, ``width`` pixels wide (the
     height follows the view): paper, the fill (``marker``: grey and colour
     marker or watercolour, if on), the ink: hatching, then the lines.
@@ -190,7 +192,7 @@ def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
     view = view if view is not None else View(viewport, width, height)
     comp = composition if composition is not None else cp.Composition(
         unfinished=False, construction=False, ground=False)
-    sheet = paper(width, height)
+    sheet = pp.make(paper_kind, width, height, image=paper_image)
     subject = cp.subject_mask(view.index, view.tris) \
         if (comp.unfinished or comp.ground) else None
     fade = (cp.fade_map(subject, view.bh / st.REFERENCE_HEIGHT)

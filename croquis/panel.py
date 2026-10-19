@@ -284,6 +284,24 @@ class CroquisPanel(QWidget):
         t.body.addLayout(chips)
         out.append((t, 2))
 
+        # Paper.
+        t = Tile(None, tr("Paper"))
+        pgrid = QGridLayout()
+        pgrid.setSpacing(4)
+        self.papers: dict = {}
+        from . import paper as pp
+        keys = list(pp.PAPERS) + ["custom"]
+        for i, key in enumerate(keys):
+            label = tr(pp.PAPERS[key][0]) if key in pp.PAPERS else tr("Your image…")
+            b = Choice(None, label, key)
+            b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            b.setIconSize(QSize(40, 26))
+            b.clicked.connect(lambda _c=False, k=key: self._pick_paper(k))
+            self.papers[key] = b
+            pgrid.addWidget(b, i // 4, i % 4)
+        t.body.addLayout(pgrid)
+        out.append((t, 2))
+
         # Fine settings, folded.
         t = Tile("ajustes", tr("Fine settings"))
         self.fold = QToolButton()
@@ -387,6 +405,7 @@ class CroquisPanel(QWidget):
             dpr = self.devicePixelRatioF()
             for b in self.materials.values():
                 b.setIcon(QIcon(swatch_pixmap(b._swatch, 40, 12, dpr)))
+            self._paper_icons(pal, dpr)
             self.turn_icon.setPixmap(icon_pixmap(
                 "giro", 16, pal.color(QPalette.WindowText), dpr))
             acc = pal.color(QPalette.Highlight)
@@ -395,6 +414,48 @@ class CroquisPanel(QWidget):
             self.draw_btn.setIconSize(QSize(18, 18))
         finally:
             self._styling = False
+
+    def _paper_icons(self, pal, dpr) -> None:
+        from PySide6.QtGui import QPainter as _P, QPen
+        from . import paper as pp
+        from .drawing import to_qimage
+        for key, b in self.papers.items():
+            if key == "custom":
+                pm = QPixmap(int(40 * dpr), int(26 * dpr))
+                pm.fill(Qt.transparent)
+                pm.setDevicePixelRatio(dpr)
+                p = _P(pm)
+                p.setRenderHint(_P.Antialiasing)
+                c = QColor(pal.color(QPalette.WindowText))
+                c.setAlpha(150)
+                pen = QPen(c, 1.2, Qt.DashLine)
+                p.setPen(pen)
+                p.drawRoundedRect(1, 1, 38, 24, 4, 4)
+                p.setPen(QPen(c, 1.6))
+                p.drawLine(20, 8, 20, 18)
+                p.drawLine(15, 13, 25, 13)
+                p.end()
+            else:
+                sheet = pp.make(key, int(40 * dpr), int(26 * dpr), seed=3)
+                pm = QPixmap.fromImage(to_qimage(sheet))
+                pm.setDevicePixelRatio(dpr)
+            b.setIcon(QIcon(pm))
+
+    def _pick_paper(self, key: str) -> None:
+        """A paper, or an image of your own (chosen each time, so it can be
+        changed)."""
+        if key == "custom":
+            start = self.s.get("paper_image") or str(Path.home())
+            path, _f = QFileDialog.getOpenFileName(
+                self, tr("Choose an image for the paper"), start,
+                tr("Images") + " (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff)")
+            if not path:
+                self._show_state()                 # undo the chip's own check
+                return
+            self.s["paper_image"] = path
+            self._write()
+        self._set("paper", key)
+        self._show_state()
 
     def changeEvent(self, ev) -> None:            # noqa: N802 (Qt)
         if ev.type() in (QEvent.PaletteChange, QEvent.ApplicationPaletteChange):
@@ -464,6 +525,11 @@ class CroquisPanel(QWidget):
             for key, sl in self.sliders.items():
                 sl.setValue(s[key])
             self.size.set_value(s["size"])
+            for key, b in self.papers.items():
+                b.setChecked(s["paper"] == key)
+            img = s.get("paper_image") or ""
+            self.papers["custom"].setToolTip(Path(img).name if img else
+                                             tr("Choose an image of your own"))
         finally:
             self._loading = False
         fill = s["technique"] != "ink"
@@ -509,7 +575,9 @@ class CroquisPanel(QWidget):
                 return
             img = drawing.sketch(vp, self.style(), w, view=view,
                                  marker=self.marker_style(),
-                                 composition=self.composition())
+                                 composition=self.composition(),
+                                 paper_kind=self.s["paper"],
+                                 paper_image=self.s["paper_image"])
         finally:
             QApplication.restoreOverrideCursor()
         self._say("")

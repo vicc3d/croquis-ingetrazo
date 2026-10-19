@@ -27,6 +27,7 @@ DEFAULTS = {
     "offset": 12, "nib": 26, "strength": 100,
     "unfinished": True, "construction": True, "ground": False,
     "size": 2400,
+    "paper": "cream", "paper_image": "",
 }
 
 #: The ready-made styles: what each sets. Key → (label, choices).

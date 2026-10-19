@@ -610,3 +610,45 @@ def test_high_contrast_is_solid_ink_on_white():
     rough = ink.paint(np.full((120, 160, 3), 240.0), values, None, 0.2, texture=True)
     edge = rough.mean(axis=2)[18:24, 20:60]
     assert (edge > 200).any() and (edge < 60).any()   # broken at its edge
+
+
+def test_papers_and_an_image_of_your_own(tmp_path):
+    from PySide6.QtGui import QImage, QColor
+    from croquis import paper as pp
+    for key in pp.PAPERS:
+        sheet = pp.make(key, 120, 80)
+        assert sheet.shape == (80, 120, 3)
+        # The ruled ones a little darker on average: their grid.
+        assert np.allclose(sheet.mean(axis=(0, 1)), pp.PAPERS[key][1],
+                           atol=24 if key in ("grid", "dots") else 12)
+    small = QImage(16, 16, QImage.Format_RGB32)
+    small.fill(QColor(10, 200, 30))
+    path = tmp_path / "tile.png"
+    small.save(str(path))
+    own = pp.make("custom", 120, 80, image=str(path))
+    assert np.allclose(own[40, 60], (10, 200, 30), atol=2)       # repeated
+    missing = pp.make("custom", 120, 80, image=str(tmp_path / "nope.png"))
+    assert np.allclose(missing.mean(axis=(0, 1)), pp.PAPERS["cream"][1], atol=12)
+
+
+def test_the_paper_box_picks_an_image_of_your_own(window, monkeypatch, tmp_path):
+    from PySide6.QtGui import QImage, QColor
+    from PySide6.QtWidgets import QFileDialog
+    win, _a = window
+    panel = _panel(win)
+    panel.papers["kraft"].click()
+    assert panel.s["paper"] == "kraft"
+    img = QImage(32, 32, QImage.Format_RGB32)
+    img.fill(QColor(200, 0, 0))
+    path = tmp_path / "mine.png"
+    img.save(str(path))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        staticmethod(lambda *a, **k: (str(path), "")))
+    panel.papers["custom"].click()
+    assert panel.s["paper"] == "custom" and panel.s["paper_image"] == str(path)
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        staticmethod(lambda *a, **k: ("", "")))
+    panel.papers["grid"].click()
+    panel.papers["custom"].click()                    # cancelled: stays
+    assert panel.s["paper"] == "grid"
+    assert panel.papers["grid"].isChecked() and not panel.papers["custom"].isChecked()
