@@ -5,6 +5,8 @@ from __future__ import annotations
 
 _TEXTS = {
     "es": {
+        "Dry brush": "Pincel seco",
+        "High contrast: the black breaks up at its edges, as a dry brush leaves it": "Alto contraste: el negro se deshace en los bordes, como lo deja un pincel seco",
         "On: each area of colour or hatching gets its own slant, as a hand never repeats one exactly. Off: all alike.": "Activada: cada zona de color o de rayado lleva su propia inclinación, como una mano que nunca repite exactamente. Desactivada: todas iguales.",
         "Reset all": "Restablecer todo",
         "Every setting of the panel back to how it comes, as just installed": "Todos los ajustes del panel como recién instalado",
@@ -94,6 +96,8 @@ _TEXTS = {
             "Dibuja un croquis a mano alzada de la vista actual.",
     },
     "pt-BR": {
+        "Dry brush": "Pincel seco",
+        "High contrast: the black breaks up at its edges, as a dry brush leaves it": "Alto contraste: o preto se desfaz nas bordas, como deixa um pincel seco",
         "On: each area of colour or hatching gets its own slant, as a hand never repeats one exactly. Off: all alike.": "Ativada: cada área de cor ou de hachura tem sua própria inclinação, como uma mão que nunca repete exatamente. Desativada: todas iguais.",
         "Reset all": "Restaurar tudo",
         "Every setting of the panel back to how it comes, as just installed": "Todos os ajustes do painel como recém-instalado",

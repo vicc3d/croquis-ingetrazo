@@ -239,6 +239,11 @@ class CroquisPanel(QWidget):
             self.materials[key] = b
             mgrid.addWidget(b, i // 2, i % 2)
         mats.body.addLayout(mgrid)
+        self.dry = Switch(tr("Dry brush"))
+        self.dry.setToolTip(tr("High contrast: the black breaks up at its edges, "
+                               "as a dry brush leaves it"))
+        self.dry.toggled.connect(lambda v: self._set("ink_texture", v))
+        mats.body.addWidget(self.dry)
         out.append(((light, mats), 1))
 
         # Hatching.
@@ -452,6 +457,7 @@ class CroquisPanel(QWidget):
             for key, b in self.materials.items():
                 b.setChecked(s["materials"] == key)
             self.hatch_on.setChecked(s["hatching"])
+            self.dry.setChecked(s["ink_texture"])
             self.hatch_dir.set_value(s["hatch_along"])
             self.turn.setValue(s["hatch_turn"])
             self.turn_label.setText(f"{tr('Turn')} {s['hatch_turn']}°")
@@ -463,6 +469,7 @@ class CroquisPanel(QWidget):
         fill = s["technique"] != "ink"
         for b in self.materials.values():
             b.setEnabled(fill)
+        self.dry.setEnabled(fill and s["materials"] == "contrast")
         for key in ("offset", "strength"):
             self.sliders[key].setEnabled(fill)
         self.sliders["nib"].setEnabled(s["technique"] == "marker")

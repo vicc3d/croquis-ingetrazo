@@ -22,7 +22,7 @@ DEFAULTS = {
     "technique": "marker",            # marker, watercolour or ink
     "light": "classic", "shadows": True,
     "materials": "colour",            # colour, greys, contrast or none
-    "natural": False,
+    "natural": False, "ink_texture": False,
     "hatching": False, "hatch_along": True, "hatch_turn": 0,
     "offset": 12, "nib": 26, "strength": 100,
     "unfinished": True, "construction": True, "ground": False,
@@ -56,7 +56,8 @@ PRESETS = {
     "contrast": ("High contrast", {
         "technique": "marker", "materials": "contrast", "shadows": True,
         "hatching": False, "outlines": True, "twice": False,
-        "unfinished": False, "construction": False, "ground": False}),
+        "unfinished": False, "construction": False, "ground": False,
+        "ink_texture": False}),
 }
 
 
@@ -115,7 +116,7 @@ def marker_style(s: dict) -> MarkerStyle:
         strength=s["strength"] / 100.0, shadows=s["shadows"], colour=True,
         colour_mode=s["materials"], hatching=s["hatching"],
         hatch_along=s["hatch_along"], hatch_turn=float(s["hatch_turn"]),
-        natural=s["natural"])
+        natural=s["natural"], ink_texture=s["ink_texture"])
 
 
 def composition(s: dict) -> Composition:

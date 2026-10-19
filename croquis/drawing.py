@@ -16,6 +16,7 @@ from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
 
 from . import compose as cp
 from . import hatch
+from . import ink
 from . import marker as mk
 from . import palette as pal
 from . import shadow as sh
@@ -143,7 +144,11 @@ def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None,
     maps = maps if maps is not None else shade_maps(view, style)
     ones = np.full((view.bh, view.bw, 3), 255.0)
     scale = view.bh / st.REFERENCE_HEIGHT
-    if style.medium == "watercolour":
+    if mk.colour_mode(style) == "contrast":
+        # High contrast is its own technique: contour and solid ink.
+        factor = ink.paint(ones, maps["values"], maps["tone"], scale, INK,
+                           texture=style.ink_texture, strength=min(1.0, style.strength))
+    elif style.medium == "watercolour":
         factor = wc.paint(ones, maps["values"], maps["colour"], style, scale,
                           tone=maps["tone"])
     else:

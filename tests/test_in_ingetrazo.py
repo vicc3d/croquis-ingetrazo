@@ -596,3 +596,17 @@ def test_reset_all_puts_every_setting_back(window):
     assert panel.s == ps.DEFAULTS
     assert panel.cards[ps.DEFAULTS["preset"]].isChecked()
     assert panel.hand.value() == ps.DEFAULTS["hand"]
+
+
+def test_high_contrast_is_solid_ink_on_white():
+    from croquis import ink
+    values = np.zeros((120, 160), dtype=np.int8)
+    values[20:60, 20:60] = 2                       # away from the light
+    values[70:110, 90:150] = 3                     # a cast shadow
+    out = ink.paint(np.full((120, 160, 3), 240.0), values, None, 0.2)
+    grey = out.mean(axis=2)
+    assert grey[40, 40] < 40 and grey[90, 120] < 40   # solid black masses
+    assert grey[5, 5] > 235 and grey[90, 60] > 235     # paper elsewhere
+    rough = ink.paint(np.full((120, 160, 3), 240.0), values, None, 0.2, texture=True)
+    edge = rough.mean(axis=2)[18:24, 20:60]
+    assert (edge > 200).any() and (edge < 60).any()   # broken at its edge

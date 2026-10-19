@@ -56,6 +56,7 @@ class MarkerStyle:
     hatch_along: bool = True      # hatching along the faces (or diagonal)
     hatch_turn: float = 0.0       # degrees added to the hatching
     natural: bool = False         # each area its own turn of the hand
+    ink_texture: bool = False     # high contrast: a dry brush's edge
 
 
 def triangle_normals(tris: np.ndarray) -> np.ndarray:
