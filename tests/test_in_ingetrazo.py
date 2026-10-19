@@ -538,13 +538,23 @@ def test_the_panel_follows_the_theme(window):
     from PySide6.QtGui import QColor, QPalette
     win, _a = window
     panel = _panel(win)
-    pal = QPalette(panel.palette())
+    before = QPalette(_app.palette())
+    pal = QPalette(before)
     pal.setColor(QPalette.Window, QColor("#202124"))
     pal.setColor(QPalette.WindowText, QColor("#eeeeee"))
     pal.setColor(QPalette.Highlight, QColor("#e8833a"))
-    panel.setPalette(pal)
+    _app.setPalette(pal)                 # as IngeTrazo's theme switch does
     _app.processEvents()
-    assert "#e8833a" in panel.styleSheet()
+    try:
+        sheet = panel.styleSheet()
+    finally:
+        _app.setPalette(before)
+    assert "#e8833a" in sheet
+    # Tiles a shade over the dark window, not black or white.
+    from PySide6.QtGui import QColor as C
+    import re
+    tile = re.search(r"QFrame#tile \{ background: (#[0-9a-f]{6})", sheet).group(1)
+    assert 30 < C(tile).lightness() < 90
 
 
 def test_presets_are_complete_and_clean_reads_anything():

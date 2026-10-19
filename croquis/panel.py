@@ -27,7 +27,7 @@ from . import drawing
 from . import presets as ps
 from . import strokes as st
 from .texts import tr
-from .ui import (Choice, Segmented, Tile, icon_pixmap, stylesheet,
+from .ui import (Choice, Segmented, Switch, Tile, icon_pixmap, stylesheet,
                  swatch_pixmap, themed_icon)
 
 _SETTINGS = ("ingetrazo-croquis", "croquis")
@@ -136,6 +136,17 @@ class CroquisPanel(QWidget):
         grid.setColumnStretch(1, 1)
         self._restyle()
         self._show_state()
+        # IngeTrazo switches themes with the application's palette, which a
+        # widget with its own stylesheet is not told about: listen to it.
+        inst = QApplication.instance()
+        if inst is not None and hasattr(inst, "paletteChanged"):
+            inst.paletteChanged.connect(self._on_app_palette)
+
+    def _on_app_palette(self, _pal) -> None:
+        try:
+            self._restyle()
+        except RuntimeError:                   # the panel is gone
+            pass
 
     # ---- Building --------------------------------------------------------------
     def _build(self):
@@ -232,8 +243,8 @@ class CroquisPanel(QWidget):
 
         # Hatching.
         t = Tile("rayado", tr("Hatching in the shade"))
-        self.hatch_on = Choice(None, tr("On"), chip=True)
-        self.hatch_on.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.hatch_on = Switch()
+        self.hatch_on.setToolTip(tr("Hatching in the shade (ink)"))
         self.hatch_on.toggled.connect(lambda v: self._set("hatching", v))
         t.head.addWidget(self.hatch_on)
         row = QHBoxLayout()
@@ -295,8 +306,9 @@ class CroquisPanel(QWidget):
             self.sliders[key] = sl
             fl.addWidget(lab, i, 0)
             fl.addWidget(sl, i, 1)
-        nat = self._toggle("natural", None, tr("Natural variation"))
-        nat.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        nat = Switch(tr("Natural variation"))
+        nat.toggled.connect(lambda v: self._set("natural", v))
+        self.toggles["natural"] = nat
         nat.setToolTip(tr("On: each area of colour or hatching gets its own slant, "
                           "as a hand never repeats one exactly. Off: all alike."))
         fl.addWidget(nat, 5, 0, 1, 2)
@@ -347,22 +359,32 @@ class CroquisPanel(QWidget):
         self.fold.setArrowType(Qt.DownArrow if open_ else Qt.RightArrow)
 
     # ---- Theme -------------------------------------------------------------------
+    def theme_palette(self) -> QPalette:
+        """IngeTrazo's palette: the application's, which its theme switch
+        sets (views/theme.py). The panel's own is changed by its stylesheet
+        (a transparent background leaves its Window role transparent black),
+        so it cannot be the source."""
+        return QPalette(QApplication.palette())
+
     def _restyle(self) -> None:
         if self._styling:
             return
         self._styling = True
         try:
-            self.setStyleSheet(stylesheet(self.palette()))
+            pal = self.theme_palette()
+            self.setStyleSheet(stylesheet(pal))
             for w in self.findChildren(QWidget):
                 fn = getattr(w, "refresh_icons", None)
                 if callable(fn):
                     fn()
+            for sw in self.findChildren(Switch):
+                sw.set_colours(pal)
             dpr = self.devicePixelRatioF()
             for b in self.materials.values():
                 b.setIcon(QIcon(swatch_pixmap(b._swatch, 40, 12, dpr)))
             self.turn_icon.setPixmap(icon_pixmap(
-                "giro", 16, self.palette().color(QPalette.WindowText), dpr))
-            acc = self.palette().color(QPalette.Highlight)
+                "giro", 16, pal.color(QPalette.WindowText), dpr))
+            acc = pal.color(QPalette.Highlight)
             on_acc = QColor("#ffffff" if acc.lightness() < 170 else "#111111")
             self.draw_btn.setIcon(QIcon(icon_pixmap("dibujar", 18, on_acc, dpr)))
             self.draw_btn.setIconSize(QSize(18, 18))

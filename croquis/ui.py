@@ -15,8 +15,8 @@ from PySide6.QtCore import QByteArray, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
-    QButtonGroup, QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolButton,
-    QVBoxLayout, QWidget,
+    QAbstractButton, QButtonGroup, QFrame, QHBoxLayout, QLabel, QSizePolicy,
+    QToolButton, QVBoxLayout, QWidget,
 )
 
 ICONS = Path(__file__).resolve().parent / "icons"
@@ -221,3 +221,65 @@ def swatch_pixmap(colours, w: int, h: int, dpr: float) -> QPixmap:
         p.drawRect(QRectF(i * w / n, 0, w / n + 1, h))
     p.end()
     return pm
+
+
+class Switch(QAbstractButton):
+    """An on/off switch, with its label on the left: for a setting, not a
+    command. Painted from the theme's palette; a click anywhere on the row
+    flips it."""
+
+    TRACK_W, TRACK_H = 32, 18
+
+    def __init__(self, text: str = "", parent=None) -> None:
+        super().__init__(parent)
+        self.setText(text)
+        self.setCheckable(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Expanding if text else QSizePolicy.Fixed,
+                           QSizePolicy.Fixed)
+        self._colours = None
+
+    def set_colours(self, pal: QPalette) -> None:
+        """The panel's palette (a stylesheet can leave the button's own
+        palette at the application's defaults)."""
+        self._colours = (QColor(pal.color(QPalette.WindowText)),
+                         QColor(pal.color(QPalette.Highlight)),
+                         QColor(pal.color(QPalette.Window)))
+        self.update()
+
+    def sizeHint(self) -> QSize:              # noqa: N802 (Qt)
+        fm = self.fontMetrics()
+        w = self.TRACK_W + (fm.horizontalAdvance(self.text()) + 10 if self.text() else 0)
+        return QSize(w + 2, max(self.TRACK_H + 4, fm.height() + 4))
+
+    def paintEvent(self, _ev) -> None:       # noqa: N802 (Qt)
+        if self._colours is not None:
+            text, acc, win = self._colours
+        else:
+            pal = self.palette()
+            text = pal.color(QPalette.WindowText)
+            acc = pal.color(QPalette.Highlight)
+            win = pal.color(QPalette.Window)
+        on = self.isChecked()
+        enabled = self.isEnabled()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        h = self.height()
+        x = self.width() - self.TRACK_W - 1
+        y = (h - self.TRACK_H) / 2
+        if self.text():
+            muted = _mix(win, text, 0.75 if enabled else 0.4)
+            p.setPen(muted)
+            p.drawText(QRectF(0, 0, x - 8, h), int(Qt.AlignVCenter | Qt.AlignLeft), self.text())
+        track = QColor(acc if on else _mix(win, text, 0.28))
+        if not enabled:
+            track = _mix(win, track, 0.55)
+        p.setPen(Qt.NoPen)
+        p.setBrush(track)
+        p.drawRoundedRect(QRectF(x, y, self.TRACK_W, self.TRACK_H),
+                          self.TRACK_H / 2, self.TRACK_H / 2)
+        r = self.TRACK_H - 4
+        kx = x + (self.TRACK_W - r - 2 if on else 2)
+        p.setBrush(QColor("#ffffff"))
+        p.drawEllipse(QRectF(kx, y + 2, r, r))
+        p.end()
