@@ -38,33 +38,51 @@ MATERIALS = (("colour", ("#D85A30", "#BA7517")), ("greys", ("#B4B2A9", "#5F5E5A"
 
 
 class LinePreview(QWidget):
-    """A sample of the line as the hand will draw it: a corner and a long
-    stroke, redrawn as the settings change."""
+    """A sample of the line as the hand will draw it: a rectangle shaded with
+    diagonal lines, redrawn as the settings change. The corners show the
+    overshoot, the shading the hand's waver, the outline its weight."""
+
+    W, H = 330.0, 58.0
+    X0, X1, Y0, Y1 = 40.0, 290.0, 7.0, 51.0
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(46)
+        self.setFixedHeight(56)
         self.style_ = st.LineStyle()
+        x0, x1, y0, y1 = self.X0, self.X1, self.Y0, self.Y1
+        edges = [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]]
+        # Diagonals at 45°, cut to the rectangle.
+        hatch = []
+        h = y1 - y0
+        for c in np.arange(x0 - h + 14.0, x1, 14.0):
+            a = np.array([c, y1])
+            b = np.array([c + h, y0])
+            t0 = max(0.0, (x0 - a[0]) / h)
+            t1 = min(1.0, (x1 - a[0]) / h)
+            if t1 - t0 > 0.15:
+                p0 = a + (b - a) * t0
+                p1 = a + (b - a) * t1
+                hatch.append([p0[0] + 2.0, p0[1] - 2.0, p1[0] - 2.0, p1[1] + 2.0])
+        self.segs = np.array(edges + hatch, dtype=np.float64)
+        self.kinds = np.array([True] * 4 + [False] * len(hatch))
 
     def set_style(self, style: st.LineStyle) -> None:
         self.style_ = style
         self.update()
 
     def paintEvent(self, _ev) -> None:            # noqa: N802 (Qt)
-        w = max(1, self.width())
-        vw, vh = 330.0, 48.0
-        segs = np.array([[30, 40, 300, 40], [30, 40, 30, 6], [110, 30, 270, 11]])
-        # Seen at about a quarter of a drawing's size: the hand at that scale,
-        # the ink a little heavier so the sample reads in a small box.
         from dataclasses import replace
+        w = max(1, self.width())
+        # Seen at about a fifth of a drawing's size; the ink a little
+        # heavier, so the sample reads in a small box.
         style = replace(self.style_, width=self.style_.width * 1.3)
-        strokes = st.strokes_for(segs, np.array([True, True, False]), style, 600)
+        strokes = st.strokes_for(self.segs, self.kinds, style, 600)
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(Qt.NoPen)
         ink = QColor(self.palette().color(QPalette.WindowText))
-        k = min(w / vw, self.height() / vh)
-        p.translate((w - vw * k) / 2, (self.height() - vh * k) / 2)
+        k = min(w / self.W, self.height() / self.H)
+        p.translate((w - self.W * k) / 2, (self.height() - self.H * k) / 2)
         p.scale(k, k)
         for s in strokes:
             c = QColor(ink)
