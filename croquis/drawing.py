@@ -202,7 +202,7 @@ def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
         strokes += cp.construction_strokes(view.segs, height, width, style.hand,
                                            index=view.index, to_buffer=view.scale)
     if comp.ground:
-        strokes += cp.ground_strokes(subject, view.scale, height, style.hand)
+        strokes += cp.ground_strokes(view, height, style.hand)
     if maps is not None and marker.hatching:
         shade = hatch.hatch_strokes(maps, marker, view.scale, height, style.hand)
         if fade is not None:

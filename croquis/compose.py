@@ -8,8 +8,9 @@ printed.
   lines stay whole.
 - **Construction lines:** some of the long lines run on past the drawing,
   thin and light, as the guides a sketcher draws first.
-- **Ground strokes:** a few loose strokes fanning out under the model, to
-  sit it on the ground.
+- **Ground strokes:** a few loose strokes on the ground round the model's
+  foot, along its main directions and in the view's perspective, to sit it
+  on the ground.
 """
 from __future__ import annotations
 
@@ -156,41 +157,82 @@ def construction_strokes(segs: np.ndarray, height: int, width: int,
     return st.strokes_for(np.array(out_segs), None, style, height)
 
 
-def ground_strokes(subject: np.ndarray, to_drawing: float, height: int,
-                   hand: float, seed: int = 23) -> list:
-    """A few loose strokes on the ground under the subject: lines fanning
-    out from its foot, as the lines of a street toward the viewer, and one
-    or two along the ground."""
-    rows = np.nonzero(subject.any(axis=1))[0]
-    if not len(rows):
+def _main_axes(geom, tris) -> float:
+    """The model's main direction on the ground, radians: the most common
+    direction of its level edges (weighted by length, modulo a right
+    angle), as the walls of a building run."""
+    hard = np.asarray(geom[1], dtype=np.float64).reshape(-1, 2, 3)
+    if len(hard):
+        d = hard[:, 1] - hard[:, 0]
+        level = np.abs(d[:, 2]) < 0.05 * np.maximum(np.linalg.norm(d, axis=1), 1e-9)
+        d = d[level]
+        if len(d):
+            w = np.hypot(d[:, 0], d[:, 1])
+            a = np.arctan2(d[:, 1], d[:, 0]) * 4.0      # a right angle → 2π
+            return float(np.arctan2((w * np.sin(a)).sum(), (w * np.cos(a)).sum()) / 4.0)
+    return 0.0
+
+
+def ground_strokes(view, height: int, hand: float, seed: int = 23) -> list:
+    """Loose strokes on the ground round the model's foot, along its two
+    main directions: drawn in the view's own perspective, they run toward
+    its vanishing points, as the lines of a pavement. Only over empty
+    paper (the model hides them)."""
+    from . import shadow as sh
+    from . import visibility as vis
+    tris = view.tris
+    if not len(tris):
         return []
-    top, bottom = rows[0], rows[-1]
-    # The foot: the subject's width over its lowest fifth.
-    foot = subject[max(top, bottom - max(3, (bottom - top) // 5)):bottom + 1]
-    cols = np.nonzero(foot.any(axis=0))[0]
-    if not len(cols):
-        return []
-    s = height / st.REFERENCE_HEIGHT
-    cx = (cols[0] + cols[-1]) / 2.0 / to_drawing
-    span = max(30.0 * s, (cols[-1] - cols[0]) / 2.0 / to_drawing)
-    oy = bottom / to_drawing
+    z0 = sh.ground_level(tris)
+    phi = _main_axes(view.geom, tris)
+    u = np.array([math.cos(phi), math.sin(phi), 0.0])
+    v = np.array([-math.sin(phi), math.cos(phi), 0.0])
+    pts = tris.reshape(-1, 3)
+    pu, pv = pts @ u, pts @ v
+    u0, u1, v0, v1 = pu.min(), pu.max(), pv.min(), pv.max()
+    size = max(u1 - u0, v1 - v0, 1e-6)
     rng = random.Random(seed)
+    world = []
+    # Along u: lines at a few offsets across v, running out past the
+    # footprint at either end; and the same along v.
+    for (a0, a1, b0, b1, along, across) in ((u0, u1, v0, v1, u, v),
+                                            (v0, v1, u0, u1, v, u)):
+        for _k in range(rng.randint(3, 5)):
+            b = rng.uniform(b0 - 0.15 * size, b1 + 0.15 * size)
+            if rng.random() < 0.5:
+                s0 = a1 + rng.uniform(0.02, 0.15) * size
+                s1 = s0 + rng.uniform(0.25, 0.8) * size
+            else:
+                s1 = a0 - rng.uniform(0.02, 0.15) * size
+                s0 = s1 - rng.uniform(0.25, 0.8) * size
+            p0 = along * s0 + across * b
+            p1 = along * s1 + across * b
+            p0[2] = p1[2] = z0
+            world.append((p0, p1))
+    persp = bool(view.camera.perspective)
+    h, w = view.index.shape
     segs = []
-    n = rng.randint(6, 9)
-    for k in range(n):
-        u = (k + rng.uniform(0.2, 0.8)) / n * 2.0 - 1.0     # -1..1 across
-        x0 = cx + u * span * 1.15
-        y0 = oy + rng.uniform(6, 22) * s
-        # Away from a point far above the subject: they open outward.
-        ang = math.atan2(1.0, u * 0.75 + rng.uniform(-0.12, 0.12))
-        length = rng.uniform(0.05, 0.11) * height
-        segs.append(np.array([x0, y0, x0 + length * math.cos(ang),
-                              y0 + length * math.sin(ang)]))
-    for _k in range(2):
-        y = oy + rng.uniform(3, 12) * s
-        segs.append(np.array([cx - span * rng.uniform(1.3, 1.8), y,
-                              cx + span * rng.uniform(1.3, 1.8),
-                              y + rng.uniform(-3, 3) * s]))
+    for p0, p1 in world:
+        A, B = vis._clip_segments(vis.to_clip(p0[None, :], view.M),
+                                  vis.to_clip(p1[None, :], view.M))
+        if not len(A):
+            continue
+        ax, ay, _q = vis._screen(A, w, h, persp)
+        bx, by, _q = vis._screen(B, w, h, persp)
+        n = int(max(2, math.hypot(bx[0] - ax[0], by[0] - ay[0]) / 2.0))
+        t = np.linspace(0.0, 1.0, n)
+        x, y = ax[0] + t * (bx[0] - ax[0]), ay[0] + t * (by[0] - ay[0])
+        xi, yi = x.astype(np.int64), y.astype(np.int64)
+        inside = (xi >= 0) & (xi < w) & (yi >= 0) & (yi < h)
+        free = inside.copy()
+        free[inside] = view.index[yi[inside], xi[inside]] < 0
+        # The pieces over empty paper.
+        edges = np.flatnonzero(np.diff(np.r_[0, free.astype(np.int8), 0]))
+        for s0, s1 in zip(edges[0::2], edges[1::2] - 1):
+            if s1 - s0 >= 4:
+                segs.append(np.array([x[s0], y[s0], x[s1], y[s1]]) / view.scale)
+    if not segs:
+        return []
     style = st.LineStyle(hand=min(1.0, hand * 0.8 + 0.2), width=0.9,
                          profile_scale=1.0, overshoot=0.0, double_stroke=False,
                          breaks=True, opacity=0.5)

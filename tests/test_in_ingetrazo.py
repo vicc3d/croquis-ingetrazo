@@ -474,3 +474,20 @@ def test_colour_modes_change_the_fill(window):
     # A dark material reads dark in colour and greys, not in the others.
     assert means["colour"] < means["none"] - 0.05
     assert means["greys"] < means["none"] - 0.05
+
+
+def test_ground_strokes_follow_the_perspective(window):
+    """In a parallel view the pavement lines along one axis stay parallel;
+    in perspective they converge."""
+    from croquis import compose as cp
+    win, _a = window
+    vp = win.viewport
+    out = {}
+    for mode in ("parallel", "perspective"):
+        vp.camera.set_projection(mode)
+        _app.processEvents()
+        w, h = drawing.drawing_size(vp.camera, 1000)
+        view = drawing.View(vp, w, h)
+        strokes = cp.ground_strokes(view, h, 0.0, seed=3)
+        out[mode] = strokes
+    assert out["parallel"] and out["perspective"]
