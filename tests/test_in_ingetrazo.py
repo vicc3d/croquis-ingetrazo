@@ -167,7 +167,7 @@ def test_a_wall_split_at_its_vertices_is_one_stroke():
 def test_the_tab_draws_the_view(window, monkeypatch):
     win, _a = window
     panel = _panel(win)
-    panel.size.setCurrentIndex(0)
+    panel.set("size", 1600)
     panel.draw()
     img = panel._window._img
     assert img.width() == 1600
@@ -259,8 +259,8 @@ def test_the_sun_light_and_its_night(window):
 def test_the_tab_draws_with_the_marker(window):
     win, _a = window
     panel = _panel(win)
-    panel.marker_on.setChecked(True)
-    panel.size.setCurrentIndex(0)
+    panel.set("technique", "marker")
+    panel.set("size", 1600)
     panel.draw()
     img = panel._window._img
     arr = np.frombuffer(img.constBits(), dtype=np.uint8,
@@ -351,10 +351,10 @@ def test_watercolour_stays_near_its_fill_and_has_a_rim():
 def test_the_tab_paints_in_watercolour_with_hatching(window):
     win, _a = window
     panel = _panel(win)
-    panel.marker_on.setChecked(True)
-    panel.medium.setCurrentIndex(panel.medium.findData("watercolour"))
-    panel.hatching.setChecked(True)
-    panel.size.setCurrentIndex(0)
+    panel.set("technique", "marker")
+    panel.set("technique", "watercolour")
+    panel.set("hatching", True)
+    panel.set("size", 1600)
     st_ = panel.marker_style()
     assert st_.medium == "watercolour" and st_.hatching
     panel.draw()
@@ -403,10 +403,10 @@ def test_construction_lines_run_past_the_long_lines():
 def test_the_tab_draws_with_its_composition(window):
     win, _a = window
     panel = _panel(win)
-    panel.ground.setChecked(True)
+    panel.set("ground", True)
     c = panel.composition()
     assert c.ground and c.unfinished and c.construction
-    panel.size.setCurrentIndex(0)
+    panel.set("size", 1600)
     panel.draw()
     assert panel._window._img.width() == 1600
     panel._window.close()
@@ -496,3 +496,62 @@ def test_ground_strokes_follow_the_perspective(window):
         strokes = cp.ground_strokes(view, h, 0.0, seed=3)
         out[mode] = strokes
     assert out["parallel"] and out["perspective"]
+
+
+def test_a_style_card_sets_its_look_and_editing_makes_it_custom(window):
+    win, _a = window
+    panel = _panel(win)
+    panel.cards["watercolour"].click()
+    assert panel.s["preset"] == "watercolour"
+    assert panel.marker_style().medium == "watercolour"
+    assert panel.marker_style().hatching
+    assert panel.cards["watercolour"].isChecked()
+    panel.materials["greys"].click()
+    assert panel.s["preset"] == "custom" and panel.custom.isVisible() or \
+        panel.s["preset"] == "custom"
+    assert not any(b.isChecked() for b in panel.cards.values())
+    panel.cards["ink"].click()
+    assert panel.s["technique"] == "ink"
+    assert not panel.marker_style().enabled
+    assert not panel.materials["colour"].isEnabled()   # no fill with ink only
+
+
+def test_the_controls_drive_the_settings_and_they_are_kept(window):
+    from PySide6.QtCore import QSettings
+    from croquis import panel as cp
+    win, _a = window
+    panel = _panel(win)
+    panel.technique.buttons[1].click()                 # watercolour
+    panel.light.buttons[1].click()                     # the model's sun
+    panel.toggles["ground"].click()
+    panel.hand.setValue(80)
+    panel.size.buttons[2].click()                      # L
+    s = panel.s
+    assert (s["technique"], s["light"], s["ground"], s["hand"], s["size"]) == \
+        ("watercolour", "sun", True, 80, 3600)
+    stored = cp.ps.clean(QSettings(*cp._SETTINGS).value("state", ""))
+    assert stored["size"] == 3600 and stored["technique"] == "watercolour"
+    assert panel.style().hand == 0.8
+
+
+def test_the_panel_follows_the_theme(window):
+    from PySide6.QtGui import QColor, QPalette
+    win, _a = window
+    panel = _panel(win)
+    pal = QPalette(panel.palette())
+    pal.setColor(QPalette.Window, QColor("#202124"))
+    pal.setColor(QPalette.WindowText, QColor("#eeeeee"))
+    pal.setColor(QPalette.Highlight, QColor("#e8833a"))
+    panel.setPalette(pal)
+    _app.processEvents()
+    assert "#e8833a" in panel.styleSheet()
+
+
+def test_presets_are_complete_and_clean_reads_anything():
+    from croquis import presets as ps
+    for key in ps.PRESETS:
+        s = ps.apply_preset(dict(ps.DEFAULTS), key)
+        assert ps.matching_preset(s) == key
+        ps.line_style(s), ps.marker_style(s), ps.composition(s)
+    assert ps.clean("not json") == ps.DEFAULTS
+    assert ps.clean({"size": "x", "hatching": 1})["size"] == ps.DEFAULTS["size"]

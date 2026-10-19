@@ -46,10 +46,26 @@ on the ground under the subject.
 
 ## Use
 
-Frame the view in IngeTrazo, set the hand (from *Ruler* to *Loose*), the line
-weight and the overshoot, and press **Draw the view**. The drawing opens in a
-window of its own, to save as PNG or copy. Perspective, two-point and
-parallel views all work. The settings are kept between sessions.
+Frame the view in IngeTrazo and open the **Croquis** tab. Its panel is a
+bento of small boxes, one decision each:
+
+- **Style:** start from a ready-made look (Ink, Grey marker, Colour marker,
+  Watercolour, Hatched, High contrast), each card with a real thumbnail.
+  Change anything after that and it becomes *Custom*.
+- **Line:** the hand, from *Ruler* to *Loose*, with a live sample of the
+  stroke; outlines, lines drawn twice, breaks.
+- **Technique:** marker, watercolour or ink only.
+- **Light** (classic or the model's sun, and the cast shadows) and
+  **Materials** (colour, greys, contrast or none).
+- **Hatching in the shade**, along the faces or diagonal, with a turn.
+- **Composition:** free edges, construction lines, ground strokes.
+- **Fine settings**, folded: line weight, overshoot, offset, nib,
+  intensity, natural variation.
+
+Pick the size (S, M, L: 1600, 2400 or 3600 px wide) and press **Draw the
+view**: the drawing opens in a window of its own, to save as PNG or copy.
+Perspective, two-point and parallel views all work. The panel follows
+IngeTrazo's light or dark theme, and the settings are kept between sessions.
 
 ## How it works
 

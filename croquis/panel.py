@@ -1,33 +1,84 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
-"""The «Croquis» tab of the side tray, and the window the drawing opens in."""
+"""The «Croquis» tab of the side tray, as a bento of small boxes, and the
+window the drawing opens in.
+
+One box per decision: the style to start from (cards with a real thumbnail),
+the line (with a live sample of the hand), the technique, the light, the
+materials, the hatching, the composition, the fine settings (folded), and
+the size with the button that draws. The settings are one dict
+(:mod:`.presets`), kept per user.
+"""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QGuiApplication, QPixmap
+import numpy as np
+from PySide6.QtCore import QEvent, QPointF, QSettings, QSize, Qt
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPalette, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
-    QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QSlider,
+    QApplication, QDialog, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+    QLabel, QPushButton, QScrollArea, QSizePolicy, QSlider, QToolButton,
     QVBoxLayout, QWidget,
 )
 
 from . import drawing
-from .compose import Composition
-from .marker import MarkerStyle
-from .strokes import LineStyle
+from . import presets as ps
+from . import strokes as st
 from .texts import tr
+from .ui import (Choice, Segmented, Tile, icon_pixmap, stylesheet,
+                 swatch_pixmap, themed_icon)
 
-SIZES = (1600, 2400, 3600)
 _SETTINGS = ("ingetrazo-croquis", "croquis")
+THUMBS = Path(__file__).resolve().parent / "thumbs"
+SIZES = ((1600, "S"), (2400, "M"), (3600, "L"))
+MATERIALS = (("colour", ("#D85A30", "#BA7517")), ("greys", ("#B4B2A9", "#5F5E5A")),
+             ("contrast", ("#F1EFE8", "#2C2C2A")), ("none", ("#F1EFE8",)))
 
 
-def _slider(lo: int, hi: int, value: int) -> QSlider:
+class LinePreview(QWidget):
+    """A sample of the line as the hand will draw it: a corner and a long
+    stroke, redrawn as the settings change."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(46)
+        self.style_ = st.LineStyle()
+
+    def set_style(self, style: st.LineStyle) -> None:
+        self.style_ = style
+        self.update()
+
+    def paintEvent(self, _ev) -> None:            # noqa: N802 (Qt)
+        w = max(1, self.width())
+        vw, vh = 330.0, 48.0
+        segs = np.array([[30, 40, 300, 40], [30, 40, 30, 6], [110, 30, 270, 11]])
+        # Seen at about a quarter of a drawing's size: the hand at that scale,
+        # the ink a little heavier so the sample reads in a small box.
+        from dataclasses import replace
+        style = replace(self.style_, width=self.style_.width * 1.3)
+        strokes = st.strokes_for(segs, np.array([True, True, False]), style, 600)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        ink = QColor(self.palette().color(QPalette.WindowText))
+        k = min(w / vw, self.height() / vh)
+        p.translate((w - vw * k) / 2, (self.height() - vh * k) / 2)
+        p.scale(k, k)
+        for s in strokes:
+            c = QColor(ink)
+            c.setAlphaF(max(0.0, min(1.0, s.opacity)))
+            p.setBrush(c)
+            p.drawPolygon(QPolygonF([QPointF(float(x), float(y)) for x, y in s.outline]))
+        p.end()
+
+
+def _slider(lo: int, hi: int) -> QSlider:
     s = QSlider(Qt.Horizontal)
     s.setRange(lo, hi)
-    s.setValue(value)
     s.setMinimumWidth(60)
+    s.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     return s
 
 
@@ -36,257 +87,353 @@ class CroquisPanel(QWidget):
         super().__init__()
         self.app = app
         self._window = None
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(6, 6, 6, 6)
+        self._styling = False
+        self._loading = False
+        self.setObjectName("croquisPanel")
+        self.s = self._read()
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        outer.addWidget(scroll)
+        body = QWidget()
+        body.setObjectName("croquisPanel")
+        scroll.setWidget(body)
+        grid = QGridLayout(body)
+        grid.setContentsMargins(8, 8, 8, 8)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(8)
+        row = 0
+        for tile, span in self._build():
+            if span == 2:
+                grid.addWidget(tile, row, 0, 1, 2)
+            else:
+                grid.addWidget(tile[0], row, 0)
+                grid.addWidget(tile[1], row, 1)
+            row += 1
+        grid.setRowStretch(row, 1)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        self._restyle()
+        self._show_state()
 
-        hint = QLabel(tr("Draws what the viewport shows, as a freehand sketch "
-                         "on paper. Frame the view first."))
-        hint.setWordWrap(True)
-        lay.addWidget(hint)
+    # ---- Building --------------------------------------------------------------
+    def _build(self):
+        out = []
+        # Style: the cards.
+        t = Tile("estilo", tr("Style"))
+        self.custom = QLabel(tr("Custom"))
+        self.custom.setObjectName("hint")
+        t.head.addWidget(self.custom)
+        cards = QGridLayout()
+        cards.setSpacing(6)
+        self.cards: dict = {}
+        for i, (key, (label, _c)) in enumerate(ps.PRESETS.items()):
+            b = Choice(None, tr(label), key)
+            pm = QPixmap(str(THUMBS / f"{key}.png"))
+            if not pm.isNull():
+                pm.setDevicePixelRatio(2.0)
+                b.setIcon(QIcon(pm))
+                b.setIconSize(QSize(64, 44))
+                b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            b.clicked.connect(lambda _c=False, k=key: self._preset(k))
+            self.cards[key] = b
+            cards.addWidget(b, i // 3, i % 3)
+        t.body.addLayout(cards)
+        out.append((t, 2))
 
-        title = QLabel(f"<b>{tr('Line')}</b>")
-        lay.addWidget(title)
-        form = QFormLayout()
-        form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        d = LineStyle()
-        self.hand = _slider(0, 100, int(d.hand * 100))
+        # Line: a live sample, the hand, three chips.
+        t = Tile("linea", tr("Line"))
+        self.preview = LinePreview()
+        t.body.addWidget(self.preview)
+        self.hand = _slider(0, 100)
+        self.hand.valueChanged.connect(lambda v: self._set("hand", v))
+        t.body.addWidget(self.hand)
+        scale = QHBoxLayout()
+        for text, align in ((tr("Ruler"), Qt.AlignLeft), (tr("Hand"), Qt.AlignHCenter),
+                            (tr("Loose"), Qt.AlignRight)):
+            lab = QLabel(text)
+            lab.setObjectName("scale")
+            lab.setAlignment(align)
+            scale.addWidget(lab, 1)
+        t.body.addLayout(scale)
+        chips = QHBoxLayout()
+        chips.setSpacing(6)
+        self.toggles: dict = {}
+        for key, icon, text in (("outlines", "contornos", tr("Outlines")),
+                                ("twice", "repasar", tr("Twice")),
+                                ("breaks", "cortes", tr("Breaks"))):
+            chips.addWidget(self._toggle(key, icon, text))
+        t.body.addLayout(chips)
+        out.append((t, 2))
+
+        # Technique.
+        t = Tile("tecnica", tr("Technique"))
+        self.technique = Segmented([("marker", "rotulador", tr("Marker")),
+                                    ("watercolour", "acuarela", tr("Watercolour")),
+                                    ("ink", "solo-tinta", tr("Ink only"))])
+        self.technique.changed.connect(lambda v: self._set("technique", v))
+        t.body.addWidget(self.technique)
+        out.append((t, 2))
+
+        # Light, and materials, side by side.
+        light = Tile("luz", tr("Light"))
+        self.light = Segmented([("classic", "luz-clasica", tr("Classic")),
+                                ("sun", "luz-sol", tr("Sun"))])
+        self.light.changed.connect(lambda v: self._set("light", v))
+        light.body.addWidget(self.light)
+        sh = self._toggle("shadows", "sombras", tr("Shadows"))
+        sh.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        light.body.addWidget(sh)
+        light.body.addStretch(1)
+        mats = Tile("materiales", tr("Materials"))
+        mgrid = QGridLayout()
+        mgrid.setSpacing(4)
+        self.materials: dict = {}
+        labels = {"colour": tr("Colour"), "greys": tr("Greys"),
+                  "contrast": tr("Contrast"), "none": tr("None")}
+        for i, (key, colours) in enumerate(MATERIALS):
+            b = Choice(None, labels[key], key)
+            b._swatch = colours
+            b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            b.setIconSize(QSize(40, 12))
+            b.clicked.connect(lambda _c=False, k=key: self._set("materials", k))
+            self.materials[key] = b
+            mgrid.addWidget(b, i // 2, i % 2)
+        mats.body.addLayout(mgrid)
+        out.append(((light, mats), 1))
+
+        # Hatching.
+        t = Tile("rayado", tr("Hatching in the shade"))
+        self.hatch_on = Choice(None, tr("On"), chip=True)
+        self.hatch_on.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.hatch_on.toggled.connect(lambda v: self._set("hatching", v))
+        t.head.addWidget(self.hatch_on)
         row = QHBoxLayout()
-        row.addWidget(QLabel(tr("Ruler")))
-        row.addWidget(self.hand, 1)
-        row.addWidget(QLabel(tr("Loose")))
-        form.addRow(tr("Hand"), row)
-        self.weight = _slider(5, 40, int(d.width * 10))
-        form.addRow(tr("Line weight"), self.weight)
-        self.overshoot = _slider(0, 200, int(d.overshoot * 100))
-        form.addRow(tr("Overshoot"), self.overshoot)
-        lay.addLayout(form)
-        self.outlines = QCheckBox(tr("Heavier outlines"))
-        self.outlines.setChecked(True)
-        self.twice = QCheckBox(tr("Draw lines twice"))
-        self.twice.setChecked(d.double_stroke)
-        self.breaks = QCheckBox(tr("Lift the pen on long lines"))
-        self.breaks.setChecked(d.breaks)
-        for w in (self.outlines, self.twice, self.breaks):
-            lay.addWidget(w)
+        self.hatch_dir = Segmented([(True, "rayado-caras", tr("Along the faces")),
+                                    (False, "rayado-diagonal", tr("Diagonal"))])
+        self.hatch_dir.changed.connect(lambda v: self._set("hatch_along", v))
+        row.addWidget(self.hatch_dir, 2)
+        turn = QVBoxLayout()
+        turn.setSpacing(2)
+        self.turn_icon = QLabel()
+        self.turn_icon.setAlignment(Qt.AlignHCenter)
+        self.turn = _slider(-90, 90)
+        self.turn.valueChanged.connect(lambda v: self._set("hatch_turn", v))
+        self.turn_label = QLabel()
+        self.turn_label.setObjectName("scale")
+        self.turn_label.setAlignment(Qt.AlignHCenter)
+        turn.addWidget(self.turn_icon)
+        turn.addWidget(self.turn)
+        turn.addWidget(self.turn_label)
+        row.addLayout(turn, 1)
+        t.body.addLayout(row)
+        out.append((t, 2))
 
-        lay.addWidget(QLabel(f"<b>{tr('Colour and shade')}</b>"))
-        m = MarkerStyle()
-        self.marker_on = QCheckBox(tr("Colour, light and shade"))
-        self.marker_on.setChecked(m.enabled)
-        lay.addWidget(self.marker_on)
-        mform = QFormLayout()
-        mform.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        self.medium = QComboBox()
-        self.medium.addItem(tr("Marker"), "marker")
-        self.medium.addItem(tr("Watercolour"), "watercolour")
-        mform.addRow(tr("Technique"), self.medium)
-        self.light = QComboBox()
-        self.light.addItem(tr("Classic, from the upper left"), "classic")
-        self.light.addItem(tr("The model's sun (Shadows panel)"), "sun")
-        mform.addRow(tr("Light"), self.light)
-        self.offset = _slider(0, 40, int(m.offset))
-        mform.addRow(tr("Off the lines"), self.offset)
-        self.nib = _slider(10, 60, int(m.width))
-        mform.addRow(tr("Nib"), self.nib)
-        self.strength = _slider(20, 150, int(m.strength * 100))
-        mform.addRow(tr("Intensity"), self.strength)
-        lay.addLayout(mform)
-        self.shadows = QCheckBox(tr("Cast shadows"))
-        self.shadows.setChecked(m.shadows)
-        self.colour = QComboBox()
-        for key, text in (("colour", tr("Colour")), ("greys", tr("Greys")),
-                          ("contrast", tr("High contrast")), ("none", tr("Light and shade only"))):
-            self.colour.addItem(text, key)
-        cform = QFormLayout()
-        cform.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        cform.addRow(tr("Materials"), self.colour)
-        self.natural = QCheckBox(tr("Natural variation (each area its own hand)"))
-        self.natural.setChecked(m.natural)
-        self.hatching = QCheckBox(tr("Hatching in the shade (ink)"))
-        self.hatching.setChecked(m.hatching)
-        self.hatch_dir = QComboBox()
-        self.hatch_dir.addItem(tr("Along the faces"), True)
-        self.hatch_dir.addItem(tr("Diagonal"), False)
-        self.hatch_turn = _slider(-90, 90, int(m.hatch_turn))
-        hform = QFormLayout()
-        hform.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        hform.addRow(tr("Direction"), self.hatch_dir)
-        hform.addRow(tr("Turn"), self.hatch_turn)
-        lay.addLayout(cform)
-        lay.addWidget(self.shadows)
-        lay.addWidget(self.natural)
-        lay.addWidget(self.hatching)
-        lay.addLayout(hform)
-        self.marker_on.toggled.connect(self._enable_marker)
-        self.hatching.toggled.connect(self._enable_marker)
-        self.medium.currentIndexChanged.connect(self._enable_marker)
+        # Composition.
+        t = Tile("composicion", tr("Composition"))
+        chips = QHBoxLayout()
+        chips.setSpacing(6)
+        for key, icon, text in (("unfinished", "bordes-libres", tr("Free edges")),
+                                ("construction", "construccion", tr("Construction")),
+                                ("ground", "suelo", tr("Ground"))):
+            chips.addWidget(self._toggle(key, icon, text))
+        t.body.addLayout(chips)
+        out.append((t, 2))
 
-        lay.addWidget(QLabel(f"<b>{tr('Composition')}</b>"))
-        c = Composition()
-        self.unfinished = QCheckBox(tr("Unfinished edges (colour fades out)"))
-        self.unfinished.setChecked(c.unfinished)
-        self.construction = QCheckBox(tr("Construction lines"))
-        self.construction.setChecked(c.construction)
-        self.ground = QCheckBox(tr("Ground strokes"))
-        self.ground.setChecked(c.ground)
-        for w in (self.unfinished, self.construction, self.ground):
-            lay.addWidget(w)
+        # Fine settings, folded.
+        t = Tile("ajustes", tr("Fine settings"))
+        self.fold = QToolButton()
+        self.fold.setObjectName("fold")
+        self.fold.setCheckable(True)
+        self.fold.setArrowType(Qt.RightArrow)
+        self.fold.setToolTip(tr("Line weight, overshoot, offset, nib and intensity"))
+        t.head.addWidget(self.fold)
+        self.fine = QWidget()
+        fl = QGridLayout(self.fine)
+        fl.setContentsMargins(0, 0, 0, 0)
+        fl.setHorizontalSpacing(8)
+        fl.setVerticalSpacing(4)
+        self.sliders: dict = {}
+        for i, (key, text, lo, hi) in enumerate((
+                ("weight", tr("Line weight"), 5, 40),
+                ("overshoot", tr("Overshoot"), 0, 200),
+                ("offset", tr("Off the lines"), 0, 40),
+                ("nib", tr("Nib"), 10, 60),
+                ("strength", tr("Intensity"), 20, 150))):
+            lab = QLabel(text)
+            lab.setObjectName("scale")
+            sl = _slider(lo, hi)
+            sl.valueChanged.connect(lambda v, k=key: self._set(k, v))
+            self.sliders[key] = sl
+            fl.addWidget(lab, i, 0)
+            fl.addWidget(sl, i, 1)
+        nat = self._toggle("natural", None, tr("Natural variation"))
+        nat.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        fl.addWidget(nat, 5, 0, 1, 2)
+        self.fine.setVisible(False)
+        t.body.addWidget(self.fine)
+        self.fold.toggled.connect(self._unfold)
+        t.title.mousePressEvent = lambda _e: self.fold.toggle()
+        out.append((t, 2))
 
-        size_row = QFormLayout()
-        self.size = QComboBox()
-        for w in SIZES:
-            self.size.addItem(tr("{w} px wide", w=w), w)
-        size_row.addRow(tr("Size"), self.size)
-        lay.addLayout(size_row)
-
+        # Size and the button that draws.
+        t = Tile(None, "")
+        t.title.hide()
+        bottom = QHBoxLayout()
+        bottom.setSpacing(8)
+        self.size = Segmented([(w, None, label) for w, label in SIZES])
+        self.size.setToolTip(tr("Drawing width: 1600, 2400 or 3600 px"))
+        self.size.changed.connect(lambda v: self._set("size", v))
+        bottom.addWidget(self.size, 1)
         self.draw_btn = QPushButton(tr("Draw the view"))
-        self.draw_btn.setDefault(True)
+        self.draw_btn.setObjectName("draw")
+        self.draw_btn.setCursor(Qt.PointingHandCursor)
         self.draw_btn.clicked.connect(self.draw)
-        lay.addWidget(self.draw_btn)
+        bottom.addWidget(self.draw_btn, 2)
+        t.body.addLayout(bottom)
         self.status = QLabel("")
+        self.status.setObjectName("hint")
         self.status.setWordWrap(True)
-        lay.addWidget(self.status)
-        lay.addStretch(1)
-        self._load()
-        for w in (self.hand, self.weight, self.overshoot, self.offset,
-                  self.nib, self.strength):
-            w.valueChanged.connect(self._save)
-        for w in (self.outlines, self.twice, self.breaks, self.marker_on,
-                  self.shadows, self.natural, self.hatching, self.unfinished,
-                  self.construction, self.ground):
-            w.toggled.connect(self._save)
-        for w in (self.size, self.light, self.medium, self.colour, self.hatch_dir):
-            w.currentIndexChanged.connect(self._save)
-        self.hatch_turn.valueChanged.connect(self._save)
-        self.hatching.toggled.connect(self._enable_marker)
-        self._enable_marker()
+        self.status.setVisible(False)
+        t.body.addWidget(self.status)
+        out.append((t, 2))
+        return out
 
-    def _enable_marker(self, *_a) -> None:
-        fill = self.marker_on.isChecked()
-        shade = fill or self.hatching.isChecked()
-        for w in (self.medium, self.offset, self.strength, self.colour, self.natural):
-            w.setEnabled(fill)
-        self.nib.setEnabled(fill and self.medium.currentData() == "marker")
-        for w in (self.light, self.shadows):
-            w.setEnabled(shade)
-        for w in (self.hatch_dir, self.hatch_turn):
-            w.setEnabled(self.hatching.isChecked())
+    def _toggle(self, key: str, icon, text: str) -> Choice:
+        b = Choice(icon, text, key)
+        b.toggled.connect(lambda v, k=key: self._set(k, v))
+        self.toggles[key] = b
+        return b
 
-    # ---- Settings (per user, not in the document) ---------------------------
-    def _load(self) -> None:
-        q = QSettings(*_SETTINGS)
+    def _unfold(self, open_: bool) -> None:
+        self.fine.setVisible(open_)
+        self.fold.setArrowType(Qt.DownArrow if open_ else Qt.RightArrow)
 
-        def num(key, default):
-            try:
-                return int(q.value(key, default))
-            except (TypeError, ValueError):
-                return default
+    # ---- Theme -------------------------------------------------------------------
+    def _restyle(self) -> None:
+        if self._styling:
+            return
+        self._styling = True
+        try:
+            self.setStyleSheet(stylesheet(self.palette()))
+            for w in self.findChildren(QWidget):
+                fn = getattr(w, "refresh_icons", None)
+                if callable(fn):
+                    fn()
+            dpr = self.devicePixelRatioF()
+            for b in self.materials.values():
+                b.setIcon(QIcon(swatch_pixmap(b._swatch, 40, 12, dpr)))
+            self.turn_icon.setPixmap(icon_pixmap(
+                "giro", 16, self.palette().color(QPalette.WindowText), dpr))
+            acc = self.palette().color(QPalette.Highlight)
+            on_acc = QColor("#ffffff" if acc.lightness() < 170 else "#111111")
+            self.draw_btn.setIcon(QIcon(icon_pixmap("dibujar", 18, on_acc, dpr)))
+            self.draw_btn.setIconSize(QSize(18, 18))
+        finally:
+            self._styling = False
 
-        def flag(key, default):
-            v = q.value(key, default)
-            return v in (True, "true", "1", 1) if not isinstance(v, bool) else v
+    def changeEvent(self, ev) -> None:            # noqa: N802 (Qt)
+        if ev.type() in (QEvent.PaletteChange, QEvent.ApplicationPaletteChange):
+            self._restyle()
+        super().changeEvent(ev)
 
-        self.hand.setValue(num("line/hand", self.hand.value()))
-        self.weight.setValue(num("line/weight", self.weight.value()))
-        self.overshoot.setValue(num("line/overshoot", self.overshoot.value()))
-        self.outlines.setChecked(flag("line/outlines", True))
-        self.twice.setChecked(flag("line/twice", self.twice.isChecked()))
-        self.breaks.setChecked(flag("line/breaks", self.breaks.isChecked()))
-        i = self.size.findData(num("size", SIZES[0]))
-        self.size.setCurrentIndex(max(0, i))
-        self.marker_on.setChecked(flag("marker/on", self.marker_on.isChecked()))
-        i = self.light.findData(q.value("marker/light", "classic"))
-        self.light.setCurrentIndex(max(0, i))
-        self.offset.setValue(num("marker/offset", self.offset.value()))
-        self.nib.setValue(num("marker/nib", self.nib.value()))
-        self.strength.setValue(num("marker/strength", self.strength.value()))
-        self.shadows.setChecked(flag("marker/shadows", self.shadows.isChecked()))
-        i = self.colour.findData(q.value("marker/colour_mode", "colour"))
-        self.colour.setCurrentIndex(max(0, i))
-        self.natural.setChecked(flag("marker/natural", self.natural.isChecked()))
-        i = self.hatch_dir.findData(flag("marker/hatch_along", True))
-        self.hatch_dir.setCurrentIndex(max(0, i))
-        self.hatch_turn.setValue(num("marker/hatch_turn", 0))
-        self.hatching.setChecked(flag("marker/hatching", self.hatching.isChecked()))
-        i = self.medium.findData(q.value("marker/medium", "marker"))
-        self.medium.setCurrentIndex(max(0, i))
-        self.unfinished.setChecked(flag("compose/unfinished", self.unfinished.isChecked()))
-        self.construction.setChecked(flag("compose/construction", self.construction.isChecked()))
-        self.ground.setChecked(flag("compose/ground", self.ground.isChecked()))
+    # ---- Settings ------------------------------------------------------------------
+    def _read(self) -> dict:
+        return ps.clean(QSettings(*_SETTINGS).value("state", ""))
 
-    def _save(self, *_a) -> None:
-        q = QSettings(*_SETTINGS)
-        q.setValue("line/hand", self.hand.value())
-        q.setValue("line/weight", self.weight.value())
-        q.setValue("line/overshoot", self.overshoot.value())
-        q.setValue("line/outlines", self.outlines.isChecked())
-        q.setValue("line/twice", self.twice.isChecked())
-        q.setValue("line/breaks", self.breaks.isChecked())
-        q.setValue("size", self.size.currentData())
-        q.setValue("marker/on", self.marker_on.isChecked())
-        q.setValue("marker/light", self.light.currentData())
-        q.setValue("marker/offset", self.offset.value())
-        q.setValue("marker/nib", self.nib.value())
-        q.setValue("marker/strength", self.strength.value())
-        q.setValue("marker/shadows", self.shadows.isChecked())
-        q.setValue("marker/colour_mode", self.colour.currentData())
-        q.setValue("marker/natural", self.natural.isChecked())
-        q.setValue("marker/hatch_along", self.hatch_dir.currentData())
-        q.setValue("marker/hatch_turn", self.hatch_turn.value())
-        q.setValue("marker/hatching", self.hatching.isChecked())
-        q.setValue("marker/medium", self.medium.currentData())
-        q.setValue("compose/unfinished", self.unfinished.isChecked())
-        q.setValue("compose/construction", self.construction.isChecked())
-        q.setValue("compose/ground", self.ground.isChecked())
+    def _write(self) -> None:
+        QSettings(*_SETTINGS).setValue("state", json.dumps(self.s))
 
-    def style(self) -> LineStyle:
-        return LineStyle(
-            hand=self.hand.value() / 100.0,
-            width=self.weight.value() / 10.0,
-            profile_scale=2.0 if self.outlines.isChecked() else 1.0,
-            overshoot=self.overshoot.value() / 100.0,
-            double_stroke=self.twice.isChecked(),
-            breaks=self.breaks.isChecked())
+    def _preset(self, key: str) -> None:
+        self.s = ps.apply_preset(self.s, key)
+        self._write()
+        self._show_state()
 
-    def composition(self) -> Composition:
-        return Composition(unfinished=self.unfinished.isChecked(),
-                           construction=self.construction.isChecked(),
-                           ground=self.ground.isChecked())
+    def _set(self, key: str, value) -> None:
+        if self._loading or self.s.get(key) == value:
+            return
+        self.s[key] = value
+        self.s["preset"] = ps.matching_preset(self.s)
+        self._write()
+        self._show_state()
 
-    def marker_style(self) -> MarkerStyle:
-        return MarkerStyle(
-            enabled=self.marker_on.isChecked(),
-            light=self.light.currentData(),
-            offset=float(self.offset.value()),
-            width=float(self.nib.value()),
-            strength=self.strength.value() / 100.0,
-            shadows=self.shadows.isChecked(),
-            colour=True,
-            colour_mode=self.colour.currentData(),
-            natural=self.natural.isChecked(),
-            hatch_along=bool(self.hatch_dir.currentData()),
-            hatch_turn=float(self.hatch_turn.value()),
-            medium=self.medium.currentData(),
-            hatching=self.hatching.isChecked())
+    def set(self, key: str, value) -> None:
+        """Change one setting (as the controls do) and show it."""
+        self._set(key, value)
+
+    def _show_state(self) -> None:
+        """Put the settings on the controls (without echoing back)."""
+        s = self.s
+        self._loading = True
+        try:
+            for key, b in self.cards.items():
+                b.setChecked(s["preset"] == key)
+            self.custom.setVisible(s["preset"] == "custom")
+            self.hand.setValue(s["hand"])
+            for key, b in self.toggles.items():
+                b.setChecked(bool(s[key]))
+            self.technique.set_value(s["technique"])
+            self.light.set_value(s["light"])
+            for key, b in self.materials.items():
+                b.setChecked(s["materials"] == key)
+            self.hatch_on.setChecked(s["hatching"])
+            self.hatch_dir.set_value(s["hatch_along"])
+            self.turn.setValue(s["hatch_turn"])
+            self.turn_label.setText(f"{tr('Turn')} {s['hatch_turn']}°")
+            for key, sl in self.sliders.items():
+                sl.setValue(s[key])
+            self.size.set_value(s["size"])
+        finally:
+            self._loading = False
+        fill = s["technique"] != "ink"
+        for b in self.materials.values():
+            b.setEnabled(fill)
+        for key in ("offset", "strength"):
+            self.sliders[key].setEnabled(fill)
+        self.sliders["nib"].setEnabled(s["technique"] == "marker")
+        self.toggles["natural"].setEnabled(fill)
+        shade = fill or s["hatching"]
+        self.light.setEnabled(shade)
+        self.toggles["shadows"].setEnabled(shade)
+        self.hatch_dir.setEnabled(s["hatching"])
+        self.turn.setEnabled(s["hatching"])
+        self.preview.set_style(self.style())
+
+    # ---- What the drawing is given -------------------------------------------------
+    def style(self) -> st.LineStyle:
+        return ps.line_style(self.s)
+
+    def marker_style(self):
+        return ps.marker_style(self.s)
+
+    def composition(self):
+        return ps.composition(self.s)
 
     # ---- Drawing ---------------------------------------------------------------
+    def _say(self, text: str) -> None:
+        self.status.setText(text)
+        self.status.setVisible(bool(text))
+
     def draw(self) -> None:
         vp = self.app.viewport
-        self.status.setText(tr("Drawing…"))
+        self._say(tr("Drawing…"))
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             QApplication.processEvents()
-            w, h = drawing.drawing_size(vp.camera, int(self.size.currentData()))
+            w, h = drawing.drawing_size(vp.camera, int(self.s["size"]))
             view = drawing.View(vp, w, h)
             if not len(view):
-                self.status.setText(tr("Nothing to draw: the view shows no lines."))
+                self._say(tr("Nothing to draw: the view shows no lines."))
                 return
             img = drawing.sketch(vp, self.style(), w, view=view,
                                  marker=self.marker_style(),
                                  composition=self.composition())
         finally:
             QApplication.restoreOverrideCursor()
-        self.status.setText("")
+        self._say("")
         if self._window is None:
             self._window = SketchWindow(self.app)
         self._window.show_image(img)
@@ -313,9 +460,12 @@ class SketchWindow(QDialog):
         row = QHBoxLayout()
         self.note = QLabel("")
         row.addWidget(self.note, 1)
-        for text, fn in ((tr("Save PNG…"), self.save), (tr("Copy"), self.copy),
-                         (tr("Close"), self.close)):
+        for icon, text, fn in (("guardar", tr("Save PNG…"), self.save),
+                               ("copiar", tr("Copy"), self.copy),
+                               (None, tr("Close"), self.close)):
             b = QPushButton(text)
+            if icon:
+                b.setIcon(themed_icon(b, icon, 20))
             b.clicked.connect(fn)
             row.addWidget(b)
         lay.addLayout(row)

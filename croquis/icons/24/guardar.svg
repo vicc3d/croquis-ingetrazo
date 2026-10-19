@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <!-- Hoja con esquina doblada -->
+    <path d="M 5.5 3.5 H 14.5 L 19 8 V 20.5 H 5.5 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 14.5 3.5 V 8 H 19" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Flecha hacia abajo -->
+    <path d="M 12 9.5 V 16.5 M 9.2 13.8 L 12 16.5 L 14.8 13.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+    <!-- Sombra suave de las páginas del cuaderno abierto -->
+    <path d="M 28 76 L 28 202 Q 78 190 128 212 Q 178 190 228 202 L 228 76 Q 178 66 128 84 Q 78 66 28 76 Z" fill="currentColor" fill-opacity="0.06" />
+    <!-- Cubierta/doble hoja inferior del cuaderno -->
+    <path d="M 22 90 L 22 212 Q 75 200 128 222 Q 181 200 234 212 L 234 90" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 32 74 L 32 198 Q 80 186 128 208 Q 176 186 224 198 L 224 74" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Lomo central del cuaderno -->
+    <line x1="128" y1="168" x2="128" y2="222" stroke="currentColor" stroke-width="8" stroke-linecap="round" />
+    <!-- Sombra arrojada y rayado en cara derecha del cubo -->
+    <polygon points="128,104 182,73 182,138 128,169" fill="currentColor" fill-opacity="0.16" />
+    <line x1="138" y1="112" x2="172" y2="92" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+    <line x1="138" y1="129" x2="172" y2="109" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+    <line x1="138" y1="146" x2="172" y2="126" stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+    <!-- Cubo arquitectónico dibujado a mano con pasadas de esquina (overshoot) -->
+    <!-- Aristas superiores -->
+    <path d="M 62 79 L 140 34 M 116 34 L 194 79" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" />
+    <path d="M 62 67 L 140 112 M 116 112 L 194 67" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" />
+    <!-- Aristas verticales con extensión -->
+    <path d="M 74 58 L 74 152 M 182 58 L 182 152 M 128 88 L 128 182" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" />
+    <!-- Aristas inferiores con extensión -->
+    <path d="M 62 131 L 140 176 M 116 176 L 194 131" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" />
+    <!-- Punto de acento en el vértice central -->
+</svg>
