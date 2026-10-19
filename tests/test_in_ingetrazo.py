@@ -572,3 +572,17 @@ def test_reset_puts_the_fine_settings_back_and_keeps_the_rest(window):
     assert panel.sliders["weight"].value() == ps.DEFAULTS["weight"]
     assert panel.s["hand"] == 90 and panel.s["technique"] == "watercolour"
     assert panel.s["preset"] == "watercolour"
+
+
+def test_reset_all_puts_every_setting_back(window):
+    from croquis import presets as ps
+    win, _a = window
+    panel = _panel(win)
+    panel.cards["contrast"].click()
+    panel.hand.setValue(5)
+    panel.size.buttons[0].click()
+    panel.sliders["nib"].setValue(55)
+    panel.reset_all_btn.click()
+    assert panel.s == ps.DEFAULTS
+    assert panel.cards[ps.DEFAULTS["preset"]].isChecked()
+    assert panel.hand.value() == ps.DEFAULTS["hand"]

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 _TEXTS = {
     "es": {
+        "Reset all": "Restablecer todo",
+        "Every setting of the panel back to how it comes, as just installed": "Todos los ajustes del panel como recién instalado",
         "Reset fine settings": "Restablecer ajustes finos",
         "Back to the usual line weight, overshoot, offset, nib and intensity": "Vuelve al grosor, sobrepaso, desplazado, punta e intensidad habituales",
         "Style": "Estilo",
@@ -91,6 +93,8 @@ _TEXTS = {
             "Dibuja un croquis a mano alzada de la vista actual.",
     },
     "pt-BR": {
+        "Reset all": "Restaurar tudo",
+        "Every setting of the panel back to how it comes, as just installed": "Todos os ajustes do painel como recém-instalado",
         "Reset fine settings": "Restaurar ajustes finos",
         "Back to the usual line weight, overshoot, offset, nib and intensity": "Volta à espessura, ultrapasse, deslocamento, ponta e intensidade habituais",
         "Style": "Estilo",

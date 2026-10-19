@@ -160,6 +160,13 @@ class CroquisPanel(QWidget):
             self.cards[key] = b
             cards.addWidget(b, i // 3, i % 3)
         t.body.addLayout(cards)
+        self.reset_all_btn = QPushButton(tr("Reset all"))
+        self.reset_all_btn.setObjectName("reset")
+        self.reset_all_btn.setCursor(Qt.PointingHandCursor)
+        self.reset_all_btn.setToolTip(tr("Every setting of the panel back to how it "
+                                         "comes, as just installed"))
+        self.reset_all_btn.clicked.connect(self.reset_all)
+        t.body.addWidget(self.reset_all_btn)
         out.append((t, 2))
 
         # Line: a live sample, the hand, three chips.
@@ -392,6 +399,12 @@ class CroquisPanel(QWidget):
         for key in self.FINE:
             self.s[key] = ps.DEFAULTS[key]
         self.s["preset"] = ps.matching_preset(self.s)
+        self._write()
+        self._show_state()
+
+    def reset_all(self) -> None:
+        """Every setting back to how the panel comes, as just installed."""
+        self.s = dict(ps.DEFAULTS)
         self._write()
         self._show_state()
 
