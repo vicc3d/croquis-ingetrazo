@@ -5,6 +5,7 @@ from __future__ import annotations
 
 _TEXTS = {
     "es": {
+        "On: each area of colour or hatching gets its own slant, as a hand never repeats one exactly. Off: all alike.": "Activada: cada zona de color o de rayado lleva su propia inclinación, como una mano que nunca repite exactamente. Desactivada: todas iguales.",
         "Reset all": "Restablecer todo",
         "Every setting of the panel back to how it comes, as just installed": "Todos los ajustes del panel como recién instalado",
         "Reset fine settings": "Restablecer ajustes finos",
@@ -93,6 +94,7 @@ _TEXTS = {
             "Dibuja un croquis a mano alzada de la vista actual.",
     },
     "pt-BR": {
+        "On: each area of colour or hatching gets its own slant, as a hand never repeats one exactly. Off: all alike.": "Ativada: cada área de cor ou de hachura tem sua própria inclinação, como uma mão que nunca repete exatamente. Desativada: todas iguais.",
         "Reset all": "Restaurar tudo",
         "Every setting of the panel back to how it comes, as just installed": "Todos os ajustes do painel como recém-instalado",
         "Reset fine settings": "Restaurar ajustes finos",

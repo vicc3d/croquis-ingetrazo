@@ -297,6 +297,8 @@ class CroquisPanel(QWidget):
             fl.addWidget(sl, i, 1)
         nat = self._toggle("natural", None, tr("Natural variation"))
         nat.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        nat.setToolTip(tr("On: each area of colour or hatching gets its own slant, "
+                          "as a hand never repeats one exactly. Off: all alike."))
         fl.addWidget(nat, 5, 0, 1, 2)
         self.reset_btn = QPushButton(tr("Reset fine settings"))
         self.reset_btn.setObjectName("reset")
@@ -442,7 +444,7 @@ class CroquisPanel(QWidget):
         for key in ("offset", "strength"):
             self.sliders[key].setEnabled(fill)
         self.sliders["nib"].setEnabled(s["technique"] == "marker")
-        self.toggles["natural"].setEnabled(fill)
+        self.toggles["natural"].setEnabled(fill or s["hatching"])
         shade = fill or s["hatching"]
         self.light.setEnabled(shade)
         self.toggles["shadows"].setEnabled(shade)
