@@ -1,82 +1,88 @@
 # IngeTrazo Croquis
 
+**[English](#english) · [Español](#español)**
+
 An extension for [IngeTrazo](https://github.com/ingelibre/ingetrazo) that
-draws the current view of the model as a **freehand sketch on paper**, the
-way an architect sketches: lines that run past the corners, bow and waver
-with the hand, swell in the middle and thin at the ends, drawn twice now and
-then, with the outlines heavier than the edges inside.
+draws the current view of your model as an architect's **freehand sketch on
+paper**: ink lines that run past the corners and waver with the hand, grey
+or colour marker, watercolour, hatching or high-contrast ink, on the paper
+you choose.
 
-Light and shade go on in **grey marker**: each face white, light grey or
-dark grey by how the light falls on it (a classic light from the upper left,
-or the sun of IngeTrazo's Shadows panel), in broad parallel strokes up the
-walls and across the roofs, darker where they overlap, ragged at the ends,
-and a little off the ink lines. Where something stands between a face and
-the light, its **cast shadow** goes on in a cool grey. Under the greys, each
-material's **colour** in the nearest marker of a box of twenty (a colour
-with little colour in it gets none), lighter and quicker where the light
-falls, the paper showing between the strokes.
+![The six ready-made styles on the same bench](docs/img/estilos.jpg)
 
-The materials can go in **colour**, in **greys** (each material by how
-light it is, no hue), in **high contrast** (light and shade only, the shade
-and the shadows near black) or not at all. A material's own tone counts:
-a dark one is laid dark whatever the light. Shadows also fall on the
-ground under the model, as in IngeTrazo's view, even when the model has no
-floor. With **natural variation**, each area gets its own turn of the hand.
+---
 
-Or in **watercolour** instead of marker: washes that run a little past the
-lines and stop short elsewhere, uneven pigment gathered darker at the rim
-where the water dried, the paper's grain showing; the shade a cool wash, the
-cast shadows a deeper blue one. And the shade can be **hatched** in ink,
-with either technique or none: lines drawn by hand across the faces in
-shade, closer together in the cast shadows, along each face (up a wall,
-along a board) or at one diagonal, turned as you like.
+## English
 
-The sheet is **composed** as a sketcher does: the colour laid where the
-eye goes, on the subject, and thinning out toward the edges to a ragged
-limit (the ground is not the subject: its largest flat plane is left out
-when it takes much of the view); some long lines running on past the
-drawing as construction lines; and, if wanted, loose strokes fanning out
-on the ground under the subject.
+### What it does
 
-## Install
+- **The line of a hand:** strokes that overshoot at real corners, bow and
+  waver, swell in the middle and thin at the ends, sometimes drawn twice,
+  with the outlines heavier than the edges inside. From *Ruler* to *Loose*.
+- **Six ready-made styles:** Ink, Grey marker, Colour marker, Watercolour,
+  Hatched and High contrast. Change anything and it becomes *Custom*.
+- **Light and shade:** each face lit by a classic sketcher's light or by
+  the sun of IngeTrazo's Shadows panel, with the cast shadows, also on the
+  ground under the model.
+- **The materials:** in colour (the nearest of a box of twenty markers),
+  in greys, in high contrast, or not at all.
+- **Composition:** the colour thins out toward the edges of the sheet,
+  some lines run on as construction lines, and loose strokes can go on
+  the ground.
+- **Paper:** cream, white, kraft, toned grey, tracing, squared, dotted, or
+  an image of your own.
+- **Size and export:** S, M, L, a width of your own, or a page (A5, A4, A3
+  at 150 or 300 dpi). Save as **PNG**, **SVG in layers** (paper, colour,
+  and the ink as editable vector paths) or **PDF**.
+- **Live preview:** the sketch over IngeTrazo's view, redrawn a moment
+  after you stop moving.
+- **Large models:** a model of 700 000 faces draws in about half a minute
+  with IngeTrazo's Rust engine on (a little over a minute without it), and
+  fine detail is simplified as a hand would, so it reads instead of
+  turning into a black mass.
 
-1. In IngeTrazo, **Extensions ▸ Open plugins folder**.
-2. Copy the `croquis` folder there.
-3. Restart IngeTrazo. A **Croquis** tab appears in the side tray.
+<p>
+<img src="docs/img/arco-acuarela.jpg" alt="Watercolour" width="32%">
+<img src="docs/img/pileta-rayado.jpg" alt="Hatched ink" width="33%">
+<img src="docs/img/pileta-kraft.jpg" alt="Colour marker on kraft paper" width="33%">
+</p>
 
-## Use
+### Install
 
-Frame the view in IngeTrazo and open the **Croquis** tab. Its panel is a
-bento of small boxes, one decision each:
+**From IngeTrazo** (recommended): **Extensions ▸ Manage extensions…**, look
+for *Croquis*, press **Install** and restart IngeTrazo. A **Croquis** tab
+appears in the side tray. Updates are offered there too.
 
-- **Style:** start from a ready-made look (Ink, Grey marker, Colour marker,
-  Watercolour, Hatched, High contrast), each card with a real thumbnail.
-  Change anything after that and it becomes *Custom*.
-- **Line:** the hand, from *Ruler* to *Loose*, with a live sample of the
-  stroke; outlines, lines drawn twice, breaks.
-- **Technique:** marker, watercolour or ink only.
-- **Light** (classic or the model's sun, and the cast shadows) and
-  **Materials** (colour, greys, contrast or none).
-- **Hatching in the shade**, along the faces or diagonal, with a turn.
-- **Composition:** free edges, construction lines, ground strokes.
-- **Fine settings**, folded: line weight, overshoot, offset, nib,
-  intensity, natural variation.
+**By hand:** download `croquis-<version>.zip` from
+[Releases](https://github.com/vicc3d/ingetrazo-croquis/releases), open
+**Extensions ▸ Open extensions folder**, unzip it there (you get a
+`croquis` folder) and restart IngeTrazo.
 
-Pick the paper (cream, white, kraft, toned grey, tracing, squared, dotted,
-or an image of your own) and the size: S, M, L (1600, 2400 or 3600 px
-wide), a width of your own, or a page (A5, A4, A3 at 150 or 300 dpi, the
-drawing centred with a margin). Press **Draw the view**: the drawing opens
-in a window of its own, to copy or save as:
+A copy installed by hand and one installed from the catalog cannot live
+side by side: delete the `croquis` folder before installing from the
+catalog.
 
-- **PNG**;
-- **SVG** in layers (paper, colour and shade, ink): the ink is vector,
-  every stroke a path you can edit; the paper and the fill are images, the
-  fill multiplied onto the paper;
-- **PDF**, the page at its size, the ink as vector paths.
-Perspective, two-point and parallel views all work. The panel follows
-IngeTrazo's light or dark theme, and the settings are kept between sessions.
+Needs IngeTrazo 0.5.8 or later; works with 0.5.9's Rust engine on or off.
 
-## How it works
+### Use
+
+Frame the view, open the **Croquis** tab, pick a style and press **Draw
+the view**. The drawing opens in a window of its own, to copy or save.
+
+<p>
+<img src="docs/img/panel-light.png" alt="The panel, light theme" width="30%">
+<img src="docs/img/panel-dark.png" alt="The panel, dark theme" width="30%">
+</p>
+
+The panel is a set of small boxes, one decision each: **Style**, **Line**
+(the hand, outlines, lines drawn twice, breaks), **Technique** (marker,
+watercolour, ink only), **Light** and **Materials**, **Hatching in the
+shade**, **Composition**, **Paper**, and the **Fine settings**, folded.
+It follows IngeTrazo's light or dark theme and its accent colour, and
+keeps your settings between sessions. Perspective, two-point and parallel
+views all work.
+
+### How it works
 
 - **Which lines:** the model's triangles go into a depth buffer at the
   drawing's resolution, and every edge is walked pixel by pixel; where
@@ -106,8 +112,7 @@ IngeTrazo's light or dark theme, and the settings are kept between sessions.
   passes behind something), bows more the longer it is, wavers, swells and
   thins. Everything random is seeded by the line itself, so the same view
   always gives the same drawing.
-
-## Tests
+### Tests
 
 ```bash
 python -m pytest tests/test_strokes.py
@@ -118,11 +123,84 @@ INGETRAZO_SRC=/path/to/ingetrazo QT_QPA_PLATFORM=offscreen \
 The second run checks the lines against IngeTrazo's exact hidden-line
 drawing, in perspective, two-point and parallel.
 
-## Credits
+---
+
+## Español
+
+Una extensión para [IngeTrazo](https://github.com/ingelibre/ingetrazo) que
+dibuja la vista de tu modelo como un **croquis a mano alzada sobre papel**,
+como lo haría un arquitecto: líneas de tinta que sobresalen en las esquinas
+y tiemblan con la mano, rotulador gris o de color, acuarela, rayado o tinta
+de alto contraste, en el papel que elijas.
+
+### Qué hace
+
+- **La línea de una mano:** trazos que sobresalen en las esquinas de
+  verdad, se curvan y tiemblan, más gruesos al centro y finos en las
+  puntas, a veces repasados, con las siluetas más marcadas. Desde *Regla*
+  hasta *Suelta*.
+- **Seis estilos listos:** Tinta, Rotulador gris, Rotulador color,
+  Acuarela, Rayado y Alto contraste. Si cambias algo, pasa a
+  *Personalizado*.
+- **Luz y sombra:** cada cara iluminada por una luz clásica de croquis o
+  por el sol del panel Sombras de IngeTrazo, con las sombras arrojadas,
+  también sobre el suelo bajo el modelo.
+- **Los materiales:** en color (el rotulador más cercano de una caja de
+  veinte), en grises, en alto contraste o sin ellos.
+- **Composición:** el color se desvanece hacia los bordes de la hoja,
+  algunas líneas siguen como líneas de construcción y puede haber trazos
+  sueltos en el suelo.
+- **Papel:** crema, blanco, kraft, gris, calco, cuadriculado, punteado o
+  una imagen tuya.
+- **Tamaño y exportación:** S, M, L, un ancho a medida o una hoja (A5, A4,
+  A3 a 150 o 300 ppp). Se guarda como **PNG**, **SVG por capas** (papel,
+  color y la tinta como trazos vectoriales editables) o **PDF**.
+- **Vista previa en vivo:** el croquis sobre la vista de IngeTrazo, que se
+  vuelve a dibujar un momento después de que dejas de moverte.
+- **Modelos grandes:** un modelo de 700 000 caras se dibuja en medio
+  minuto con el motor Rust de IngeTrazo encendido (algo más de un minuto
+  sin él), y el detalle fino se simplifica como lo haría una mano, para
+  que se lea y no quede como una mancha negra.
+
+### Instalar
+
+**Desde IngeTrazo** (recomendado): **Extensiones ▸ Gestionar
+extensiones…**, busca *Croquis*, pulsa **Instalar** y reinicia IngeTrazo.
+Aparece la pestaña **Croquis** en la bandeja lateral. Las actualizaciones
+llegan por ahí.
+
+**A mano:** descarga `croquis-<versión>.zip` desde
+[Releases](https://github.com/vicc3d/ingetrazo-croquis/releases), abre
+**Extensiones ▸ Abrir carpeta de extensiones**, descomprímelo ahí (queda
+una carpeta `croquis`) y reinicia IngeTrazo.
+
+Una copia instalada a mano y otra del catálogo no pueden convivir: borra
+la carpeta `croquis` antes de instalar desde el catálogo.
+
+Necesita IngeTrazo 0.5.8 o posterior; funciona con el motor Rust de la
+0.5.9 encendido o apagado.
+
+### Uso
+
+Encuadra la vista, abre la pestaña **Croquis**, elige un estilo y pulsa
+**Dibujar la vista**. El dibujo se abre en su propia ventana, para
+copiarlo o guardarlo. El panel sigue el tema claro u oscuro de IngeTrazo y
+su color de acento, y recuerda tus ajustes entre sesiones.
+
+---
+
+## Credits · Créditos
 
 **Concept, UX/UI & Design:** [Victor Crespo](https://3dvic.com)
 
-Independent extension, not affiliated with IngeTrazo's maintainers.
-IngeTrazo is by Marco Sumari Tellez and contributors.
+The images show the Yanque plaza models that come with IngeTrazo, by
+Marco Sumari Tellez,
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). · Las imágenes
+muestran los modelos de la plaza de Yanque que trae IngeTrazo, de Marco
+Sumari Tellez, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.es).
 
-License: GPL-3.0-or-later.
+Independent extension, not affiliated with IngeTrazo's maintainers.
+IngeTrazo is by Marco Sumari Tellez and contributors. · Extensión
+independiente, sin relación con quienes mantienen IngeTrazo.
+
+License · Licencia: GPL-3.0-or-later.
