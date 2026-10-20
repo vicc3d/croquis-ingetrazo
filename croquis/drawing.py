@@ -255,7 +255,9 @@ def render(viewport, style: st.LineStyle, width: int, view: View | None = None,
         maps = shade_maps(view, marker)
         if marker.enabled:
             fill = fill_layer(view, marker, maps, fade)
-    kinds = view.outline if style.profile_scale != 1.0 else None
+    # Fine detail where lines crowd, as a hand would: fewer, lighter.
+    segs, outline, weight = st.simplify(view.segs, view.outline, height)
+    kinds = outline if style.profile_scale != 1.0 else None
     strokes = []
     if comp.construction:
         strokes += cp.construction_strokes(view.segs, height, width, style.hand,
@@ -267,7 +269,7 @@ def render(viewport, style: st.LineStyle, width: int, view: View | None = None,
         if fade is not None:
             shade = cp.thin_out(shade, fade, view.scale)
         strokes += shade
-    strokes += st.strokes_for(view.segs, kinds, style, height)
+    strokes += st.strokes_for(segs, kinds, style, height, weight)
     if ox or oy:
         shift = np.array([ox, oy], dtype=np.float64)
         strokes = [st.Stroke(s.outline + shift, s.opacity) for s in strokes]
