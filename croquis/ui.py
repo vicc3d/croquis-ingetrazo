@@ -92,6 +92,10 @@ def stylesheet(pal: QPalette) -> str:
     on_bg = _mix(tile, acc, 0.22 if dark else 0.14)
     muted = _mix(win, text, 0.6)
     acc_text = "#ffffff" if acc.lightness() < 170 else "#111111"
+    # The slider: its track a shade off the tile, the part up to the knob
+    # and the knob's rim in the accent (as the chips and switches).
+    groove = _mix(tile, text, 0.22)
+    knob = "#e8eaee" if dark else "#ffffff"
     return f"""
 #croquisPanel {{ background: transparent; }}
 #croquisPanel QLabel {{ background: transparent; }}
@@ -119,6 +123,14 @@ QPushButton#draw {{ background: {acc.name()}; color: {acc_text}; border: none;
   border-radius: 8px; padding: 9px 10px; font-size: 13px; }}
 QPushButton#draw:hover {{ background: {acc.lighter(112).name()}; }}
 QPushButton#draw:pressed {{ background: {acc.darker(110).name()}; }}
+#croquisPanel QSlider::groove:horizontal {{ height: 4px; background: {groove.name()};
+  border-radius: 2px; }}
+#croquisPanel QSlider::sub-page:horizontal {{ height: 4px; background: {acc.name()};
+  border-radius: 2px; }}
+#croquisPanel QSlider::handle:horizontal {{ background: {knob}; border: 1px solid {acc.name()};
+  width: 14px; height: 14px; margin: -6px 0; border-radius: 8px; }}
+#croquisPanel QSlider::sub-page:horizontal:disabled {{ background: {muted.name()}; }}
+#croquisPanel QSlider::handle:horizontal:disabled {{ border-color: {muted.name()}; }}
 """
 
 

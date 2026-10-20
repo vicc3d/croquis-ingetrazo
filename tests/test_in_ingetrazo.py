@@ -607,6 +607,11 @@ def test_the_panel_follows_the_accent(window, monkeypatch):
     loop.exec()
     _app.processEvents()
     assert "#3aa86b" in panel.styleSheet()
+    # The sliders too, not only the chips and switches.
+    import re
+    sub = re.search(r"QSlider::sub-page:horizontal \{[^}]*background: (#[0-9a-f]{6})",
+                    panel.styleSheet())
+    assert sub and sub.group(1) == "#3aa86b"
 
 
 def test_presets_are_complete_and_clean_reads_anything():
