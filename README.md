@@ -1,6 +1,6 @@
 # IngeTrazo Croquis
 
-**[English](#english) · [Español](#español)**
+**[English](#english) · [Español](#español) · [Português](#português)**
 
 An extension for [IngeTrazo](https://github.com/ingelibre/ingetrazo) that
 draws the current view of your model as an architect's **freehand sketch on
@@ -189,6 +189,68 @@ su color de acento, y recuerda tus ajustes entre sesiones.
 
 ---
 
+## Português
+
+Uma extensão para o [IngeTrazo](https://github.com/ingelibre/ingetrazo) que
+desenha a vista do seu modelo como um **croqui à mão livre sobre papel**,
+como faria um arquiteto: linhas de nanquim que passam dos cantos e tremem
+com a mão, marcador cinza ou colorido, aquarela, hachura ou nanquim de alto
+contraste, no papel que você escolher.
+
+### O que faz
+
+- **A linha de uma mão:** traços que passam dos cantos de verdade, se
+  curvam e tremem, mais grossos no meio e finos nas pontas, às vezes
+  repassados, com as silhuetas mais marcadas. De *Régua* a *Solta*.
+- **Seis estilos prontos:** Tinta, Marcador cinza, Marcador colorido,
+  Aquarela, Hachurado e Alto contraste. Se você mudar algo, passa a
+  *Personalizado*.
+- **Luz e sombra:** cada face iluminada por uma luz clássica de croqui ou
+  pelo sol do painel Sombras do IngeTrazo, com as sombras projetadas,
+  também no chão sob o modelo.
+- **Os materiais:** em cor (o marcador mais próximo de uma caixa de
+  vinte), em cinzas, em alto contraste ou sem eles.
+- **Composição:** a cor some em direção às bordas da folha, algumas
+  linhas continuam como linhas de construção e pode haver traços soltos
+  no chão.
+- **Papel:** creme, branco, kraft, cinza, vegetal, quadriculado,
+  pontilhado ou uma imagem sua.
+- **Tamanho e exportação:** S, M, L, uma largura sob medida ou uma folha
+  (A5, A4, A3 a 150 ou 300 dpi). Salva em **PNG**, **SVG em camadas**
+  (papel, cor e o nanquim como traços vetoriais editáveis) ou **PDF**.
+- **Vista ao vivo:** o croqui sobre a vista do IngeTrazo, redesenhado um
+  momento depois que você para de se mover.
+- **Modelos grandes:** um modelo de 700 000 faces é desenhado em meio
+  minuto com o motor Rust do IngeTrazo ligado (pouco mais de um minuto sem
+  ele), e o detalhe fino é simplificado como faria uma mão, para que se
+  leia e não vire uma mancha preta.
+
+### Instalar
+
+**Pelo IngeTrazo** (recomendado): **Extensões ▸ Gerenciar extensões…**,
+procure *Croquis*, clique em **Instalar** e reinicie o IngeTrazo. Aparece a
+aba **Croquis** na bandeja lateral. As atualizações chegam por ali.
+
+**À mão:** baixe `croquis-<versão>.zip` em
+[Releases](https://github.com/vicc3d/ingetrazo-croquis/releases), abra
+**Extensões ▸ Abrir pasta de extensões**, descompacte ali (fica uma pasta
+`croquis`) e reinicie o IngeTrazo.
+
+Uma cópia instalada à mão e outra do catálogo não podem conviver: apague
+a pasta `croquis` antes de instalar pelo catálogo.
+
+Precisa do IngeTrazo 0.5.8 ou posterior; funciona com o motor Rust da
+0.5.9 ligado ou desligado.
+
+### Uso
+
+Enquadre a vista, abra a aba **Croquis**, escolha um estilo e clique em
+**Desenhar a vista**. O desenho abre na sua própria janela, para copiar ou
+salvar. O painel segue o tema claro ou escuro do IngeTrazo e sua cor de
+destaque, e lembra seus ajustes entre sessões.
+
+---
+
 ## Credits · Créditos
 
 **Concept, UX/UI & Design:** [Victor Crespo](https://3dvic.com)
@@ -198,9 +260,13 @@ Marco Sumari Tellez,
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). · Las imágenes
 muestran los modelos de la plaza de Yanque que trae IngeTrazo, de Marco
 Sumari Tellez, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.es).
+· As imagens mostram os modelos da praça de Yanque que vêm com o
+IngeTrazo, de Marco Sumari Tellez,
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.pt_BR).
 
 Independent extension, not affiliated with IngeTrazo's maintainers.
 IngeTrazo is by Marco Sumari Tellez and contributors. · Extensión
-independiente, sin relación con quienes mantienen IngeTrazo.
+independiente, sin relación con quienes mantienen IngeTrazo. · Extensão
+independente, sem relação com quem mantém o IngeTrazo.
 
-License · Licencia: GPL-3.0-or-later.
+License · Licencia · Licença: GPL-3.0-or-later.
