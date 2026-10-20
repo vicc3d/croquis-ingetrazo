@@ -688,3 +688,49 @@ def test_save_png_svg_and_pdf(window, tmp_path):
     assert len(re.findall(r"<path d=", svg)) == len(sw._layers.strokes) > 10
     assert (tmp_path / "c.pdf").read_bytes()[:4] == b"%PDF"
     sw.close()
+
+
+def test_the_live_preview_draws_once_the_view_is_still(window):
+    """On, it draws the still view in the background and lays it over the
+    viewport; a move of the camera puts it aside until it is still again."""
+    from PySide6.QtCore import QEventLoop, QTimer
+    from PySide6.QtGui import QImage, QPainter
+    win, _a = window
+
+    def run_for(ms, until=lambda: False):
+        """A real event loop, as IngeTrazo's (QTest.qWait holds Python's
+        lock and starves the drawing's thread)."""
+        loop = QEventLoop()
+        check = QTimer()
+        check.timeout.connect(lambda: until() and loop.quit())
+        check.start(50)
+        QTimer.singleShot(ms, loop.quit)
+        loop.exec()
+        check.stop()
+    panel = _panel(win)
+    panel.set("size", 1600)
+    live = panel.live
+    panel.live_switch.click()
+    assert live.enabled
+
+    def ready():
+        return live.image is not None and live.image_key == live.view_key()
+
+    def wait_for_image(ms=30000):
+        run_for(ms, ready)
+        return ready()
+
+    assert wait_for_image()
+    vp = win.viewport
+    img = QImage(vp.width(), vp.height(), QImage.Format_ARGB32)
+    img.fill(0)
+    p = QPainter(img)
+    live.paint(vp, p)
+    p.end()
+    assert img.pixelColor(vp.width() // 2, 5).alpha() == 255      # the sketch shows
+    vp.camera.yaw += 0.3
+    run_for(250)
+    assert live.image_key != live.view_key()                      # put aside
+    assert wait_for_image()                                       # and drawn again
+    panel.live_switch.click()
+    assert not live.enabled and live.image is None

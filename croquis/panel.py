@@ -137,6 +137,10 @@ class CroquisPanel(QWidget):
         grid.setRowStretch(row, 1)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
+        from .live import LivePreview
+        self.live = LivePreview(app, self)
+        live = self.live
+        self.destroyed.connect(lambda *_a: live.shutdown())
         self._restyle()
         self._show_state()
         # IngeTrazo switches themes with the application's palette, which a
@@ -389,6 +393,11 @@ class CroquisPanel(QWidget):
         cl.addWidget(self.px, 1)
         cl.addWidget(self.dpi, 1)
         t.body.addWidget(self.custom_box)
+        self.live_switch = Switch(tr("Live preview"))
+        self.live_switch.setToolTip(tr("The sketch over the view, drawn again each "
+                                       "time the view is still for a moment"))
+        self.live_switch.toggled.connect(self._live)
+        t.body.addWidget(self.live_switch)
         self.status = QLabel("")
         self.status.setObjectName("hint")
         self.status.setWordWrap(True)
@@ -402,6 +411,9 @@ class CroquisPanel(QWidget):
         b.toggled.connect(lambda v, k=key: self._set(k, v))
         self.toggles[key] = b
         return b
+
+    def _live(self, on: bool) -> None:
+        self.live.set_enabled(on)
 
     def _unfold(self, open_: bool) -> None:
         self.fine.setVisible(open_)

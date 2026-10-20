@@ -45,7 +45,10 @@ class View:
         self.camera = cam
         self.scene = viewport.scene
         self.geom = viewport.hlr_geometry()
-        coloured = pal.triangle_colours(viewport)
+        # A frozen copy of the viewport (the live preview's) brings them.
+        coloured = getattr(viewport, "croquis_colours", None)
+        if coloured is None:
+            coloured = pal.triangle_colours(viewport)
         if coloured is not None:
             self.tris, self.colour, self.tone = coloured
         else:

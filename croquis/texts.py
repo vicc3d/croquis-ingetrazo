@@ -5,6 +5,11 @@ from __future__ import annotations
 
 _TEXTS = {
     "es": {
+        "Live preview": "Vista en vivo",
+        "The sketch over the view, drawn again each time the view is still for a moment": "El croquis sobre la vista, que se vuelve a dibujar cada vez que la vista se queda quieta un momento",
+        "Croquis: drawing…": "Croquis: dibujando…",
+        "Croquis live": "Croquis en vivo",
+        "Croquis: hold the view still": "Croquis: deja la vista quieta",
         "{d} dpi": "{d} ppp",
         "Width in pixels": "Ancho en píxeles",
         "Save as…": "Guardar como…",
@@ -112,6 +117,11 @@ _TEXTS = {
             "Dibuja un croquis a mano alzada de la vista actual.",
     },
     "pt-BR": {
+        "Live preview": "Vista ao vivo",
+        "The sketch over the view, drawn again each time the view is still for a moment": "O croqui sobre a vista, redesenhado cada vez que a vista fica parada um instante",
+        "Croquis: drawing…": "Croquis: desenhando…",
+        "Croquis live": "Croquis ao vivo",
+        "Croquis: hold the view still": "Croquis: deixe a vista parada",
         "{d} dpi": "{d} dpi",
         "Width in pixels": "Largura em pixels",
         "Save as…": "Salvar como…",

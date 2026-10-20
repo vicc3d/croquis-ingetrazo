@@ -15,7 +15,7 @@ Install: copy the ``croquis`` folder into IngeTrazo's plugins folder
 """
 from __future__ import annotations
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 
 def setup(app) -> None:
@@ -23,5 +23,6 @@ def setup(app) -> None:
     from .texts import tr
     panel = CroquisPanel(app)
     dock = app.add_panel("Croquis", panel)
+    app.add_overlay(lambda viewport, painter: panel.live.paint(viewport, painter))
     app.add_menu_action("Croquis…", lambda: (app.show_panel(dock), panel.draw()),
                         tip=tr("Draw a freehand sketch of the current view."))
