@@ -175,6 +175,8 @@ def stroke_angles(normals: np.ndarray, plane_of: np.ndarray, n_planes: int,
     whichever of its world axes runs flatter on the paper."""
     from . import visibility as vis
     angle = np.zeros(max(1, n_planes))
+    if not len(plane_of):
+        return angle
     first = np.full(max(1, n_planes), -1)
     first[plane_of[::-1]] = np.arange(len(plane_of))[::-1]
     t = camera.target
@@ -188,19 +190,19 @@ def stroke_angles(normals: np.ndarray, plane_of: np.ndarray, n_planes: int,
         x, y, _q = vis._screen(a, width, height, persp)
         return math.atan2(y[1] - y[0], x[1] - x[0])
 
-    for k in range(n_planes):
-        i = first[k]
-        if i < 0:
-            continue
-        n = normals[i]
-        if abs(n[2]) < 0.7:                  # a wall: up it
-            a = screen_angle(centre, np.array([0.0, 0.0, 1.0]))
-        else:                                 # a floor or a roof
-            ax = screen_angle(centre, np.array([1.0, 0.0, 0.0]))
-            ay = screen_angle(centre, np.array([0.0, 1.0, 0.0]))
-            cand = [c for c in (ax, ay) if c is not None]
-            a = min(cand, key=lambda c: abs(math.sin(c))) if cand else 0.0
-        angle[k] = a if a is not None else math.pi / 2
+    # Measured at the camera's target, so the same two for every plane: up
+    # a wall, and across a floor. Once, not once per plane (411 000 planes
+    # took 19 s).
+    up = screen_angle(centre, np.array([0.0, 0.0, 1.0]))
+    wall = up if up is not None else math.pi / 2
+    ax = screen_angle(centre, np.array([1.0, 0.0, 0.0]))
+    ay = screen_angle(centre, np.array([0.0, 1.0, 0.0]))
+    cand = [c for c in (ax, ay) if c is not None]
+    floor = min(cand, key=lambda c: abs(math.sin(c))) if cand else 0.0
+    seen = first >= 0
+    is_wall = np.abs(normals[np.maximum(first, 0), 2]) < 0.7
+    angle[seen & is_wall] = wall
+    angle[seen & ~is_wall] = floor
     return angle
 
 

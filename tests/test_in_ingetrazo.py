@@ -329,6 +329,29 @@ def test_painted_faces_get_their_marker(window):
     assert np.allclose(tone, 0.2126 * 0.75 + 0.7152 * 0.3 + 0.0722 * 0.22, atol=0.01)
 
 
+def test_colours_are_read_once_until_the_model_changes(window, monkeypatch):
+    """The live preview asks on every new view: the colours are kept until
+    the model, its paint or what shows of it changes."""
+    from croquis import palette as pal
+    win, _a = window
+    vp = win.viewport
+    calls = []
+    real = pal._triangle_colours
+    monkeypatch.setattr(pal, "_triangle_colours",
+                        lambda v: calls.append(1) or real(v))
+    first = pal.triangle_colours(vp)
+    assert pal.triangle_colours(vp) is first and len(calls) == 1
+    for f in vp.scene.loose_mesh.faces:
+        f.attrs["color"] = [0.75, 0.3, 0.22]
+    # As every edit through IngeTrazo's history does (the Paint Bucket's).
+    vp.scene.version += 1
+    vp.notify_scene_changed()
+    _app.processEvents()
+    painted = pal.triangle_colours(vp)
+    assert len(calls) == 2
+    assert (painted[1] == pal.MARKERS.index((196, 72, 52))).all()
+
+
 def test_hatching_runs_inside_the_shade():
     from croquis import hatch
     mask = np.zeros((200, 300), dtype=bool)

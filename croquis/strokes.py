@@ -63,30 +63,68 @@ def _seed(seg, salt: int) -> int:
 def corner_ends(segs: np.ndarray, tol: float) -> np.ndarray:
     """``(N, 2)`` bools: does each end of each segment meet the end of
     another segment (a corner), within ``tol`` pixels? An end that does not
-    is a free end or a line passing behind something (a T): no overshoot."""
+    is a free end or a line passing behind something (a T): no overshoot.
+
+    On a grid of cells a little smaller than ``tol`` (their diagonal is
+    ``tol``), two ends in one cell always meet: every end in a cell shared
+    by two segments is a corner with no distance to measure. Only the ends
+    alone in their cell are measured against the cells around, all at
+    once. (End by end in Python took 21 minutes on 445 000 lines.)"""
     n = len(segs)
     if not n:
         return np.zeros((0, 2), dtype=bool)
-    ends = segs.reshape(n * 2, 2)
-    cells = np.floor(ends / tol).astype(np.int64)
-    buckets: dict = {}
-    for i, (cx, cy) in enumerate(map(tuple, cells)):
-        buckets.setdefault((cx, cy), []).append(i)
+    ends = np.asarray(segs, dtype=np.float64).reshape(n * 2, 2)
+    seg = np.arange(n * 2) // 2
     out = np.zeros(n * 2, dtype=bool)
+    ok = np.isfinite(ends).all(axis=1)
+    if not ok.any():
+        return out.reshape(n, 2)
+    c = tol / math.sqrt(2.0)
+    cells = np.zeros((n * 2, 2), dtype=np.int64)
+    cells[ok] = np.floor(ends[ok] / c).astype(np.int64)
+    lo_c = cells[ok].min(axis=0) - 2
+    span_y = int(cells[ok][:, 1].max() - lo_c[1]) + 3
+    key = (cells[:, 0] - lo_c[0]) * span_y + (cells[:, 1] - lo_c[1])
+    key[~ok] = -1
+    order = np.argsort(key, kind="stable")
+    order = order[key[order] >= 0]
+    skey = key[order]
+    # Cells holding ends of two or more segments: all their ends meet.
+    first = np.r_[0, np.nonzero(skey[1:] != skey[:-1])[0] + 1]
+    smin = np.minimum.reduceat(seg[order], first)
+    smax = np.maximum.reduceat(seg[order], first)
+    shared = np.repeat(smin != smax, np.diff(np.r_[first, len(order)]))
+    out[order[shared]] = True
+    # The rest, against the 5×5 cells around (2 cells reach ``tol``).
     tol2 = tol * tol
-    for i, (cx, cy) in enumerate(map(tuple, cells)):
-        p = ends[i]
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                for j in buckets.get((cx + dx, cy + dy), ()):
-                    if j // 2 != i // 2 and \
-                            float(((ends[j] - p) ** 2).sum()) <= tol2:
-                        out[i] = True
-                        break
-                if out[i]:
-                    break
-            if out[i]:
-                break
+    todo = order[~shared]
+    for dx in range(-2, 3):
+        for dy in range(-2, 3):
+            if (dx, dy) == (0, 0) or not len(todo):
+                continue
+            nk = key[todo] + dx * span_y + dy
+            lo = np.searchsorted(skey, nk, side="left")
+            hi = np.searchsorted(skey, nk, side="right")
+            cnt = hi - lo
+            has = cnt > 0
+            pts, lo, cnt = todo[has], lo[has], cnt[has]
+            # In batches, so a crowded cell next to many lone ends stays
+            # bounded in memory.
+            ends_at = np.cumsum(cnt)
+            k0 = 0
+            while k0 < len(pts):
+                k1 = int(np.searchsorted(ends_at, ends_at[k0] - cnt[k0] + 2_000_000,
+                                         side="right"))
+                k1 = max(k1, k0 + 1)
+                p, l, m = pts[k0:k1], lo[k0:k1], cnt[k0:k1]
+                i = np.repeat(p, m)
+                start = np.repeat(np.cumsum(m) - m, m)
+                j = order[np.repeat(l, m) + (np.arange(len(i)) - start)]
+                d = ends[j] - ends[i]
+                hit = (seg[i] != seg[j]) & ((d * d).sum(axis=1) <= tol2)
+                out[i[hit]] = True
+                k0 = k1
+            todo = todo[~out[todo]]
     return out.reshape(n, 2)
 
 

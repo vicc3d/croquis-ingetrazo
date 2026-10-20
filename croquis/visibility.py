@@ -61,7 +61,7 @@ def _clip_triangles(C: np.ndarray):
     out = [C[keep]]
     src = [np.nonzero(keep)[0]]
     crossing = np.nonzero(~keep & inside.any(axis=1))[0]
-    for t, tri, dd, ins in zip(crossing, C[crossing], d[crossing], inside[crossing]):
+    for tid, tri, dd, ins in zip(crossing, C[crossing], d[crossing], inside[crossing]):
         poly = []
         for i in range(3):
             j = (i + 1) % 3
@@ -72,7 +72,8 @@ def _clip_triangles(C: np.ndarray):
                 poly.append(tri[i] + t * (tri[j] - tri[i]))
         for k in range(1, len(poly) - 1):
             out.append(np.array([[poly[0], poly[k], poly[k + 1]]]))
-            src.append(np.array([t]))
+            # The triangle it came from (``t`` above is the cut's share).
+            src.append(np.array([tid]))
     return np.concatenate(out), np.concatenate(src).astype(np.int64)
 
 
@@ -193,6 +194,67 @@ def _runs(flags: np.ndarray, ids: np.ndarray):
     return starts, ends
 
 
+#: Samples walked at once by :func:`visible_lines` (about 0.5 GB of arrays).
+_BATCH = 4_000_000
+
+
+def _clip_to_frame(ax, ay, bx, by, width: int, height: int, margin: float = 1.0):
+    """Liang-Barsky against the frame (a pixel of margin): ``(t0, t1, keep)``,
+    the part of each screen segment inside it and whether it has one."""
+    t0 = np.zeros(len(ax))
+    t1 = np.ones(len(ax))
+    keep = np.ones(len(ax), dtype=bool)
+    dx, dy = bx - ax, by - ay
+    for p, q in ((-dx, ax + margin), (dx, width + margin - ax),
+                 (-dy, ay + margin), (dy, height + margin - ay)):
+        flat = p == 0
+        keep &= ~(flat & (q < 0))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            r = np.where(flat, 0.0, q / np.where(flat, 1.0, p))
+        t0 = np.where(p < 0, np.maximum(t0, r), t0)
+        t1 = np.where(p > 0, np.minimum(t1, r), t1)
+    return t0, t1, keep & (t0 <= t1)
+
+
+def _visible_pieces(ax, ay, aq, bx, by, bq, n, far3, width, height, persp):
+    """The visible pieces of a batch of screen segments sampled ``n`` times
+    each: ``(segs (k, 4), mid (k, 3))``, the middle sample's x, y, q."""
+    ids = np.repeat(np.arange(len(n)), n)
+    first = np.repeat(np.cumsum(n) - n, n)
+    t = (np.arange(len(ids)) - first) / np.repeat(n - 1, n)
+    sx = ax[ids] + t * (bx - ax)[ids]
+    sy = ay[ids] + t * (by - ay)[ids]
+    sq = aq[ids] + t * (bq - aq)[ids]
+    del first, t
+    ix = np.floor(sx).astype(np.int64)
+    iy = np.floor(sy).astype(np.int64)
+    on = (ix >= 0) & (ix < width) & (iy >= 0) & (iy < height)
+    if persp:
+        on &= sq > 0
+    np.clip(ix, 0, width - 1, out=ix)
+    np.clip(iy, 0, height - 1, out=iy)
+    behind = far3[iy, ix]
+    del ix, iy
+    visible = on & (sq + (_IN_FRONT * np.abs(sq) + 1e-12) >= behind)
+    del behind
+    # Close one- and two-sample gaps (a pixel the rasteriser gave to a
+    # neighbour), then the runs are the visible pieces.
+    s0, e0 = _runs(~visible & on, ids)
+    N = len(ids)
+    ok = (e0 - s0 < 2) & (s0 > 0) & (e0 + 1 < N)
+    s0, e0 = s0[ok], e0[ok]
+    ok = ((ids[s0 - 1] == ids[s0]) & (ids[e0 + 1] == ids[e0])
+          & visible[s0 - 1] & visible[e0 + 1])
+    visible[s0[ok]] = True
+    visible[e0[ok]] = True
+    starts, ends = _runs(visible, ids)
+    keep = ends > starts
+    starts, ends = starts[keep], ends[keep]
+    segs = np.stack([sx[starts], sy[starts], sx[ends], sy[ends]], axis=1)
+    mid = (starts + ends) // 2
+    return segs, np.stack([sx[mid], sy[mid], sq[mid]], axis=1)
+
+
 def visible_lines(geom, camera, width: int, height: int, step: float = 1.0,
                   zbuf=None):
     """The visible parts of the view's edges, as ``(segs, outline)``: segs
@@ -220,38 +282,36 @@ def visible_lines(geom, camera, width: int, height: int, step: float = 1.0,
     ax, ay, aq = _screen(A, width, height, persp)
     bx, by, bq = _screen(B, width, height, persp)
     length = np.hypot(bx - ax, by - ay)
-    # Off-screen far away (a huge plane behind the eye's side): skip.
-    sane = np.isfinite(length) & (length < 50.0 * (width + height))
-    ax, ay, aq, bx, by, bq, length = (v[sane] for v in (ax, ay, aq, bx, by, bq, length))
+    # An end at infinity (on the eye's own plane) has no place: skip.
+    sane = np.isfinite(length)
+    ax, ay, aq, bx, by, bq = (v[sane] for v in (ax, ay, aq, bx, by, bq))
+    # Only what falls in the frame is walked: an edge running off toward
+    # the horizon, or cut at the near plane, can be thousands of times the
+    # drawing's width (141 million samples on a 734 000-face model).
+    t0, t1, inside = _clip_to_frame(ax, ay, bx, by, width, height)
+    ax, ay, aq, bx, by, bq, t0, t1 = (v[inside] for v in (ax, ay, aq, bx, by, bq, t0, t1))
+    dx, dy, dq = bx - ax, by - ay, bq - aq
+    ax, ay, aq, bx, by, bq = (ax + t0 * dx, ay + t0 * dy, aq + t0 * dq,
+                              ax + t1 * dx, ay + t1 * dy, aq + t1 * dq)
+    length = np.hypot(bx - ax, by - ay)
     n = np.maximum(2, np.ceil(length / step).astype(np.int64) + 1)
-    ids = np.repeat(np.arange(len(n)), n)
-    first = np.repeat(np.cumsum(n) - n, n)
-    t = (np.arange(len(ids)) - first) / np.repeat(n - 1, n)
-    sx = ax[ids] + t * (bx - ax)[ids]
-    sy = ay[ids] + t * (by - ay)[ids]
-    sq = aq[ids] + t * (bq - aq)[ids]
-    ix = np.floor(sx).astype(np.int64)
-    iy = np.floor(sy).astype(np.int64)
-    on = (ix >= 0) & (ix < width) & (iy >= 0) & (iy < height) & (sq > 0 if persp else True)
-    ixc, iyc = np.clip(ix, 0, width - 1), np.clip(iy, 0, height - 1)
-    behind = far3[iyc, ixc]
-    tol = _IN_FRONT * np.abs(sq) + 1e-12
-    visible = on & (sq + tol >= behind)
-    # Close one- and two-sample gaps (a pixel the rasteriser gave to a
-    # neighbour), then the runs are the visible pieces.
-    gap = ~visible & on
-    s0, e0 = _runs(gap, ids)
-    for s, e in zip(s0, e0):
-        if e - s < 2 and s > 0 and e + 1 < len(ids) and ids[s - 1] == ids[s] \
-                and ids[e + 1] == ids[e] and visible[s - 1] and visible[e + 1]:
-            visible[s:e + 1] = True
-    starts, ends = _runs(visible, ids)
-    keep = ends > starts
-    starts, ends = starts[keep], ends[keep]
-    segs = np.stack([sx[starts], sy[starts], sx[ends], sy[ends]], axis=1)
+    # In batches of whole edges, so the samples in memory stay bounded
+    # whatever the model.
+    ends_at = np.cumsum(n)
+    parts = []
+    lo = 0
+    while lo < len(n):
+        hi = int(np.searchsorted(ends_at, ends_at[lo] - n[lo] + _BATCH, side="right"))
+        hi = max(hi, lo + 1)
+        sl = slice(lo, hi)
+        parts.append(_visible_pieces(ax[sl], ay[sl], aq[sl], bx[sl], by[sl], bq[sl],
+                                     n[sl], far3, width, height, persp))
+        lo = hi
+    if not parts:
+        return np.empty((0, 4)), np.zeros(0, dtype=bool)
+    segs = np.concatenate([p[0] for p in parts])
+    mx, my, mq = (np.concatenate([p[1][:, k] for p in parts]) for k in range(3))
     # Outline: test both sides a few pixels off the middle of each piece.
-    mid = (starts + ends) // 2
-    mx, my, mq = sx[mid], sy[mid], sq[mid]
     dx, dy = segs[:, 2] - segs[:, 0], segs[:, 3] - segs[:, 1]
     ln = np.hypot(dx, dy)
     ln[ln < 1e-9] = 1.0
@@ -297,31 +357,64 @@ def merge_collinear(segs: np.ndarray, outline: np.ndarray, tol: float,
         node = node.reshape(-1)
         pairs = np.nonzero(count[node] == 2)[0]
         order = pairs[np.argsort(node[pairs], kind="stable")]
-        for e1, e2 in zip(order[0::2], order[1::2]):
-            i, j = e1 // 2, e2 // 2
-            if i == j:
-                continue
-            di = P[e1] - P[e1 ^ 1]          # toward the meeting point
-            dj = P[e2 ^ 1] - P[e2]          # and on, away from it
-            li, lj = length[i], length[j]
-            if li > 1e-9 and lj > 1e-9 and float(di @ dj) / (li * lj) >= cos_max:
-                ri, rj = find(i), find(j)
-                if ri != rj:
-                    parent[rj] = ri
-    roots = np.array([find(i) for i in range(n)])
-    out_segs, out_line = [], []
-    for r in np.unique(roots):
-        members = np.nonzero(roots == r)[0]
-        if len(members) == 1:
-            out_segs.append(segs[members[0]])
-            out_line.append(bool(outline[members[0]]))
-            continue
-        pts = segs[members].reshape(-1, 2)
-        k = members[np.argmax(length[members])]
-        d = segs[k, 2:] - segs[k, :2]
-        d = d / max(float(np.hypot(*d)), 1e-12)
-        t = pts @ d
-        out_segs.append(np.r_[pts[np.argmin(t)], pts[np.argmax(t)]])
-        w = length[members]
-        out_line.append(bool((w * outline[members]).sum() > 0.5 * w.sum()))
-    return np.array(out_segs).reshape(-1, 4), np.array(out_line, dtype=bool)
+        e1, e2 = order[0::2], order[1::2]
+        i, j = e1 // 2, e2 // 2
+        di = P[e1] - P[e1 ^ 1]              # toward the meeting point
+        dj = P[e2 ^ 1] - P[e2]              # and on, away from it
+        li, lj = length[i], length[j]
+        good = (i != j) & (li > 1e-9) & (lj > 1e-9)
+        cos = np.einsum("ij,ij->i", di, dj) / np.where(good, li * lj, 1.0)
+        good &= cos >= cos_max
+        for a, b in zip(i[good].tolist(), j[good].tolist()):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[rb] = ra
+    roots = parent.copy()
+    while True:                             # every piece straight to its root
+        up = roots[roots]
+        if np.array_equal(up, roots):
+            break
+        roots = up
+    # Each joined line from its members, all at once (sorted by root), not
+    # line by line over the whole list: that was quadratic, hours on a model
+    # of hundreds of thousands of pieces.
+    order = np.argsort(roots, kind="stable")
+    r = roots[order]
+    first = np.r_[0, np.nonzero(r[1:] != r[:-1])[0] + 1]
+    group = np.repeat(np.arange(len(first)), np.diff(np.r_[first, n]))
+    w = length[order]
+    # The direction of each line is its longest member's.
+    best = np.full(len(first), -1.0)
+    np.maximum.at(best, group, w)
+    is_best = w >= best[group]
+    k = np.full(len(first), -1, dtype=np.int64)
+    k[group[is_best][::-1]] = order[is_best][::-1]
+    d = segs[k, 2:] - segs[k, :2]
+    d = d / np.maximum(np.hypot(d[:, 0], d[:, 1]), 1e-12)[:, None]
+    pts = segs[order].reshape(-1, 2, 2)                 # (m, 2 ends, xy)
+    t = np.einsum("mex,mx->me", pts, d[group])
+    lo_t = np.full(len(first), np.inf)
+    hi_t = np.full(len(first), -np.inf)
+    np.minimum.at(lo_t, group, t.min(axis=1))
+    np.maximum.at(hi_t, group, t.max(axis=1))
+    # The end points that reach those extremes.
+    flat_pts = pts.reshape(-1, 2)
+    flat_t = t.reshape(-1)
+    flat_g = np.repeat(group, 2)
+    at_lo = np.zeros((len(first), 2))
+    at_hi = np.zeros((len(first), 2))
+    m_lo = flat_t <= lo_t[flat_g]
+    m_hi = flat_t >= hi_t[flat_g]
+    at_lo[flat_g[m_lo][::-1]] = flat_pts[m_lo][::-1]
+    at_hi[flat_g[m_hi][::-1]] = flat_pts[m_hi][::-1]
+    out_segs = np.concatenate([at_lo, at_hi], axis=1)
+    lit = np.zeros(len(first))
+    tot = np.zeros(len(first))
+    np.add.at(lit, group, w * outline[order])
+    np.add.at(tot, group, w)
+    out_line = lit > 0.5 * tot
+    # A line of one piece stays that piece, exactly.
+    single = np.diff(np.r_[first, n]) == 1
+    out_segs[single] = segs[order[first[single]]]
+    out_line[single] = outline[order[first[single]]].astype(bool)
+    return out_segs.reshape(-1, 4), out_line.astype(bool)
