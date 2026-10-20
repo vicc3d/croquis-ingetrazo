@@ -13,6 +13,7 @@ import json
 
 from .compose import Composition
 from .marker import MarkerStyle
+from .paper import PAPERS
 from .strokes import LineStyle
 
 DEFAULTS = {
@@ -29,6 +30,25 @@ DEFAULTS = {
     "size": 2400,
     "paper": "cream", "paper_image": "",
     "custom_format": "A4", "custom_width": 3000, "dpi": 300,
+}
+
+#: The range the panel lets each number take; settings read back are held
+#: to it (a damaged file must not ask for a drawing gigapixels wide).
+RANGES = {
+    "hand": (0, 100), "weight": (5, 40), "overshoot": (0, 200),
+    "offset": (0, 40), "nib": (10, 60), "strength": (20, 150),
+    "hatch_turn": (-90, 90), "custom_width": (400, 12000),
+}
+#: The values the panel offers for each choice; another falls back to the
+#: default.
+CHOICES = {
+    "technique": ("marker", "watercolour", "ink"),
+    "light": ("classic", "sun"),
+    "materials": ("colour", "greys", "contrast", "none"),
+    "size": (1600, 2400, 3600, 0),
+    "paper": (*PAPERS, "custom"),
+    "custom_format": ("A5", "A4", "A3", "px"),
+    "dpi": (150, 300),
 }
 
 #: The ready-made styles: what each sets. Key → (label, choices).
@@ -100,6 +120,13 @@ def clean(raw) -> dict:
                 out[k] = d
         else:
             out[k] = str(v)
+        if k in RANGES:
+            lo, hi = RANGES[k]
+            out[k] = min(max(out[k], lo), hi)
+        if k in CHOICES and out[k] not in CHOICES[k]:
+            out[k] = d
+    if out["preset"] != "custom" and out["preset"] not in PRESETS:
+        out["preset"] = DEFAULTS["preset"]
     return out
 
 

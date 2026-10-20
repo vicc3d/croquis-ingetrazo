@@ -47,13 +47,26 @@ def icon_pixmap(name: str, px: int, colour: QColor, dpr: float = 1.0) -> QPixmap
     return pm
 
 
+def accent(pal: QPalette) -> QColor:
+    """IngeTrazo's accent colour (0.5.9 lets the user pick it, apart from
+    the selection's Highlight), or the palette's Highlight before that."""
+    try:
+        from views.theme import accent_color
+        c = accent_color()
+        if c.isValid():
+            return QColor(c)
+    except Exception:  # noqa: BLE001 (an older IngeTrazo, or none: tests)
+        pass
+    return QColor(pal.color(QPalette.Highlight))
+
+
 def themed_icon(widget: QWidget, name: str, px: int) -> QIcon:
     """An icon in the widget's text colour, and the accent when checked."""
     pal = widget.palette()
     dpr = widget.devicePixelRatioF()
     ic = QIcon()
     ic.addPixmap(icon_pixmap(name, px, pal.color(QPalette.WindowText), dpr), QIcon.Normal, QIcon.Off)
-    ic.addPixmap(icon_pixmap(name, px, pal.color(QPalette.Highlight), dpr), QIcon.Normal, QIcon.On)
+    ic.addPixmap(icon_pixmap(name, px, accent(pal), dpr), QIcon.Normal, QIcon.On)
     dim = QColor(pal.color(QPalette.WindowText))
     dim.setAlpha(110)
     ic.addPixmap(icon_pixmap(name, px, dim, dpr), QIcon.Disabled, QIcon.Off)
@@ -70,7 +83,7 @@ def stylesheet(pal: QPalette) -> str:
     """The panel's look, from the theme's palette."""
     win = pal.color(QPalette.Window)
     text = pal.color(QPalette.WindowText)
-    acc = pal.color(QPalette.Highlight)
+    acc = accent(pal)
     dark = win.lightness() < 128
     tile = _mix(win, QColor("white") if dark else QColor("white"), 0.06 if dark else 0.55)
     well = _mix(win, QColor("black"), 0.18 if dark else 0.05)
@@ -243,7 +256,7 @@ class Switch(QAbstractButton):
         """The panel's palette (a stylesheet can leave the button's own
         palette at the application's defaults)."""
         self._colours = (QColor(pal.color(QPalette.WindowText)),
-                         QColor(pal.color(QPalette.Highlight)),
+                         accent(pal),
                          QColor(pal.color(QPalette.Window)))
         self.update()
 
@@ -258,7 +271,7 @@ class Switch(QAbstractButton):
         else:
             pal = self.palette()
             text = pal.color(QPalette.WindowText)
-            acc = pal.color(QPalette.Highlight)
+            acc = accent(pal)
             win = pal.color(QPalette.Window)
         on = self.isChecked()
         enabled = self.isEnabled()

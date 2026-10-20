@@ -70,6 +70,15 @@ def window(monkeypatch):
     win.close()
 
 
+def _has_accent() -> bool:
+    from views import theme
+    return hasattr(theme, "accent_color") and hasattr(theme, "apply_accent")
+
+
+#: IngeTrazo 0.5.9 and later: an accent apart from the selection colour.
+_needs_accent = pytest.mark.skipif(not _has_accent(), reason="IngeTrazo before 0.5.9")
+
+
 def _panel(win):
     for dock in win._extension_docks:
         if type(dock.widget()).__name__ == "CroquisPanel":
@@ -534,15 +543,17 @@ def test_the_controls_drive_the_settings_and_they_are_kept(window):
     assert panel.style().hand == 0.8
 
 
-def test_the_panel_follows_the_theme(window):
+@_needs_accent
+def test_the_panel_follows_the_theme(window, monkeypatch):
     from PySide6.QtGui import QColor, QPalette
+    from views import theme
     win, _a = window
     panel = _panel(win)
+    monkeypatch.setattr(theme, "accent_color", lambda name=None: QColor("#e8833a"))
     before = QPalette(_app.palette())
     pal = QPalette(before)
     pal.setColor(QPalette.Window, QColor("#202124"))
     pal.setColor(QPalette.WindowText, QColor("#eeeeee"))
-    pal.setColor(QPalette.Highlight, QColor("#e8833a"))
     _app.setPalette(pal)                 # as IngeTrazo's theme switch does
     _app.processEvents()
     try:
@@ -557,6 +568,24 @@ def test_the_panel_follows_the_theme(window):
     assert 30 < C(tile).lightness() < 90
 
 
+@_needs_accent
+def test_the_panel_follows_the_accent(window, monkeypatch):
+    """Preferences changes the accent without a new palette: the panel
+    wears the new one once IngeTrazo repaints its windows."""
+    from PySide6.QtCore import QEventLoop, QTimer
+    from PySide6.QtGui import QColor
+    from views import theme
+    win, _a = window
+    panel = _panel(win)
+    monkeypatch.setattr(theme, "accent_color", lambda name=None: QColor("#3aa86b"))
+    theme.apply_accent(_app)
+    loop = QEventLoop()
+    QTimer.singleShot(300, loop.quit)
+    loop.exec()
+    _app.processEvents()
+    assert "#3aa86b" in panel.styleSheet()
+
+
 def test_presets_are_complete_and_clean_reads_anything():
     from croquis import presets as ps
     for key in ps.PRESETS:
@@ -565,6 +594,13 @@ def test_presets_are_complete_and_clean_reads_anything():
         ps.line_style(s), ps.marker_style(s), ps.composition(s)
     assert ps.clean("not json") == ps.DEFAULTS
     assert ps.clean({"size": "x", "hatching": 1})["size"] == ps.DEFAULTS["size"]
+    # Damaged settings never ask for more than the panel could.
+    bad = ps.clean({"custom_width": 10 ** 9, "size": 99999, "dpi": 9600,
+                    "custom_format": "A0", "technique": "oil", "hand": -5,
+                    "preset": "nope", "paper": "papyrus"})
+    assert bad["custom_width"] == 12000 and bad["hand"] == 0
+    for k in ("size", "dpi", "custom_format", "technique", "preset", "paper"):
+        assert bad[k] == ps.DEFAULTS[k], k
 
 
 def test_reset_puts_the_fine_settings_back_and_keeps_the_rest(window):

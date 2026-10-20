@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPointF, QSettings, QSize, Qt
+from PySide6.QtCore import QEvent, QPointF, QSettings, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPalette, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
@@ -28,7 +28,7 @@ from . import presets as ps
 from . import strokes as st
 from .texts import tr
 from .ui import (Choice, Segmented, Switch, Tile, icon_pixmap, stylesheet,
-                 swatch_pixmap, themed_icon)
+                 swatch_pixmap, themed_icon, accent)
 
 _SETTINGS = ("ingetrazo-croquis", "croquis")
 THUMBS = Path(__file__).resolve().parent / "thumbs"
@@ -103,6 +103,30 @@ def _slider(lo: int, hi: int) -> QSlider:
     return s
 
 
+class _AccentWatch(QWidget):
+    """A hidden widget on IngeTrazo's list of those restyled when the theme
+    or the accent changes (views.theme.style); each restyle calls ``fn``."""
+
+    def __init__(self, parent: QWidget, fn) -> None:
+        super().__init__(parent)
+        self.hide()
+        self._fn = fn
+        self._seen = None
+        try:
+            from views import theme
+            theme.style(self, "/* {accent_rgb} */")
+        except Exception:  # noqa: BLE001 (an IngeTrazo before 0.5.9)
+            pass
+        self._seen = self.styleSheet()
+
+    def event(self, ev) -> bool:
+        if ev.type() == QEvent.StyleChange and self._seen is not None \
+                and self.styleSheet() != self._seen:
+            self._seen = self.styleSheet()
+            QTimer.singleShot(0, self._fn)
+        return super().event(ev)
+
+
 class CroquisPanel(QWidget):
     def __init__(self, app) -> None:
         super().__init__()
@@ -148,6 +172,10 @@ class CroquisPanel(QWidget):
         inst = QApplication.instance()
         if inst is not None and hasattr(inst, "paletteChanged"):
             inst.paletteChanged.connect(self._on_app_palette)
+        # Its accent (0.5.9) changes without a new palette: IngeTrazo then
+        # re-sets the stylesheets of the widgets on its list, and this one,
+        # hidden, is on it.
+        self._accent_watch = _AccentWatch(self, lambda: self._on_app_palette(None))
 
     def _on_app_palette(self, _pal) -> None:
         try:
@@ -446,7 +474,7 @@ class CroquisPanel(QWidget):
             self._paper_icons(pal, dpr)
             self.turn_icon.setPixmap(icon_pixmap(
                 "giro", 16, pal.color(QPalette.WindowText), dpr))
-            acc = pal.color(QPalette.Highlight)
+            acc = accent(pal)
             on_acc = QColor("#ffffff" if acc.lightness() < 170 else "#111111")
             self.draw_btn.setIcon(QIcon(icon_pixmap("dibujar", 18, on_acc, dpr)))
             self.draw_btn.setIconSize(QSize(18, 18))

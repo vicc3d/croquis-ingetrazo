@@ -133,7 +133,16 @@ class LivePreview(QObject):
                 self.app.viewport.update()
             return
         if self._clock - self._still_since >= SETTLE_MS:
-            self._start(key)
+            try:
+                self._start(key)
+            except Exception:                         # noqa: BLE001
+                # Not again for this view: the timer would retry it, and
+                # log it, every tick.
+                import logging
+                logging.getLogger("ingetrazo.plugins").warning(
+                    "croquis: the live preview could not start", exc_info=True)
+                self.image, self.image_key = None, key
+                self.app.viewport.update()
 
     def _start(self, key: str) -> None:
         from . import palette as pal

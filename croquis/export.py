@@ -13,6 +13,7 @@ marker's ink is.
 from __future__ import annotations
 
 import base64
+from xml.sax.saxutils import quoteattr
 
 import numpy as np
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QMarginsF, QPointF, QRectF, QSizeF, Qt
@@ -55,7 +56,7 @@ def svg_text(layers: Layers) -> str:
         f'xmlns:xlink="http://www.w3.org/1999/xlink" '
         f'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '
         f'width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
-        f'  <g id="paper" inkscape:groupmode="layer" inkscape:label="{tr("Paper")}">',
+        f'  <g id="paper" inkscape:groupmode="layer" inkscape:label={quoteattr(tr("Paper"))}>',
         f'    <image x="0" y="0" width="{w}" height="{h}" '
         f'xlink:href="{_data_uri(to_qimage(layers.sheet), "JPG", 92)}"/>',
         "  </g>",
@@ -66,12 +67,12 @@ def svg_text(layers: Layers) -> str:
         fill = to_qimage(layers.fill * 255.0)
         out += [
             f'  <g id="fill" inkscape:groupmode="layer" '
-            f'inkscape:label="{tr("Colour and shade")}" style="mix-blend-mode:multiply">',
+            f'inkscape:label={quoteattr(tr("Colour and shade"))} style="mix-blend-mode:multiply">',
             f'    <image x="{ox}" y="{oy}" width="{fw}" height="{fh}" '
             f'xlink:href="{_data_uri(fill)}"/>',
             "  </g>",
         ]
-    out.append(f'  <g id="ink" inkscape:groupmode="layer" inkscape:label="{tr("Ink")}" '
+    out.append(f'  <g id="ink" inkscape:groupmode="layer" inkscape:label={quoteattr(tr("Ink"))} '
                f'fill="{ink}" stroke="none">')
     for s in layers.strokes:
         op = max(0.0, min(1.0, s.opacity))
