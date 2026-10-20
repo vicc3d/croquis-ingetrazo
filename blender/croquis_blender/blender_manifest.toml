@@ -1,0 +1,17 @@
+schema_version = "1.0.0"
+
+id = "croquis"
+version = "0.1.0"
+name = "Croquis"
+tagline = "The camera's view as an architect's freehand sketch"
+maintainer = "Victor Crespo (3dvic.com · github.com/vicc3d)"
+type = "add-on"
+website = "https://github.com/vicc3d/ingetrazo-croquis"
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+tags = ["Render", "Camera", "Paint"]
+
+[permissions]
+files = "Save the drawing, read an image of your own as the paper"

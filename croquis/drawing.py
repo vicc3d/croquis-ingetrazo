@@ -11,8 +11,12 @@ layers go down as on paper: the sheet, the marker, the ink.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
+
+try:                    # IngeTrazo: Qt paints. Elsewhere (Blender): NumPy.
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
+except ImportError:     # pragma: no cover (exercised in Blender)
+    QPointF = Qt = QColor = QImage = QPainter = QPolygonF = None
 
 from . import compose as cp
 from . import hatch
@@ -79,7 +83,7 @@ def paper(width: int, height: int, seed: int = 7) -> np.ndarray:
     return np.array(PAPER, dtype=np.float64)[None, None, :] * tone[:, :, None]
 
 
-def to_qimage(rgb: np.ndarray) -> QImage:
+def to_qimage(rgb: np.ndarray) -> "QImage":
     h, w = rgb.shape[:2]
     a = np.ascontiguousarray(np.dstack([np.clip(rgb, 0, 255).astype(np.uint8),
                                         np.full((h, w), 255, dtype=np.uint8)]))
@@ -91,6 +95,8 @@ def _resize(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
     """Smoothly scale an (h, w, 3) float image."""
     if rgb.shape[1] == width and rgb.shape[0] == height:
         return rgb
+    if QImage is None:
+        return resize_array(rgb, width, height)
     img = to_qimage(rgb).scaled(width, height, Qt.IgnoreAspectRatio,
                                 Qt.SmoothTransformation)
     img = img.convertToFormat(QImage.Format_RGBA8888)
@@ -164,11 +170,26 @@ def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None,
     return _resize(factor, view.width, view.height) / 255.0
 
 
+def resize_array(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
+    """:func:`_resize` in NumPy (bilinear, pixel centres aligned), where
+    there is no Qt."""
+    h, w = rgb.shape[:2]
+    ys = np.clip((np.arange(height) + 0.5) * h / height - 0.5, 0, h - 1)
+    xs = np.clip((np.arange(width) + 0.5) * w / width - 0.5, 0, w - 1)
+    y0 = np.floor(ys).astype(np.int64)
+    x0 = np.floor(xs).astype(np.int64)
+    y1, x1 = np.minimum(y0 + 1, h - 1), np.minimum(x0 + 1, w - 1)
+    fy, fx = (ys - y0)[:, None, None], (xs - x0)[None, :, None]
+    top = rgb[y0][:, x0] * (1 - fx) + rgb[y0][:, x1] * fx
+    bottom = rgb[y1][:, x0] * (1 - fx) + rgb[y1][:, x1] * fx
+    return top * (1 - fy) + bottom * fy
+
+
 #: The name it had in 0.3.0.
 marker_layer = fill_layer
 
 
-def draw_strokes(img: QImage, strokes: list, ink=INK) -> None:
+def draw_strokes(img: "QImage", strokes: list, ink=INK) -> None:
     p = QPainter(img)
     p.setRenderHint(QPainter.Antialiasing, True)
     p.setPen(Qt.NoPen)
@@ -215,10 +236,18 @@ class Layers:
         out[oy:oy + h, ox:ox + w] *= self.fill
         return out
 
-    def image(self) -> QImage:
+    def image(self) -> "QImage":
         img = to_qimage(self.coloured_sheet())
         draw_strokes(img, self.strokes)
         return img
+
+    def pixels(self) -> np.ndarray:
+        """The drawing as (H, W, 3) bytes, without Qt: the strokes laid by
+        :mod:`.raster` (as QPainter would, to a hair)."""
+        from . import raster
+        rgb = np.array(self.coloured_sheet(), dtype=np.float64)
+        raster.lay_strokes(rgb, self.strokes, INK)
+        return np.clip(np.rint(rgb), 0, 255).astype(np.uint8)
 
 
 def page_size(fmt: str, dpi: int, landscape: bool) -> tuple:
@@ -280,7 +309,7 @@ def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
            marker: mk.MarkerStyle | None = None,
            composition: cp.Composition | None = None,
            paper_kind: str = "cream", paper_image: str = "",
-           page: tuple | None = None) -> QImage:
+           page: tuple | None = None) -> "QImage":
     """:func:`render`, as one image."""
     return render(viewport, style, width, view, marker, composition,
                   paper_kind, paper_image, page).image()

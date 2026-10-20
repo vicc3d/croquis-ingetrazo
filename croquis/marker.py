@@ -70,13 +70,19 @@ def light_direction(camera, scene, kind: str):
     """Unit vector toward the light, in world axes. ``classic``: from the
     upper left and a little behind the viewer, the sketcher's habit, so the
     drawing always reads; ``sun``: the sun of IngeTrazo's Shadows panel
-    (the classic light when it is night there)."""
+    (the classic light when it is night there), or the one a scene's own
+    ``croquis_sun()`` gives (Blender's Sun lamp)."""
     if kind == "sun":
-        try:
-            from core.render_blender import sun_toward
-            d = sun_toward(scene)
-        except Exception:                # noqa: BLE001 (older IngeTrazo)
-            d = None
+        # A host other than IngeTrazo (Blender) says where its sun is.
+        own = getattr(scene, "croquis_sun", None)
+        if callable(own):
+            d = own()
+        else:
+            try:
+                from core.render_blender import sun_toward
+                d = sun_toward(scene)
+            except Exception:            # noqa: BLE001 (older IngeTrazo)
+                d = None
         if d is not None:
             v = np.array(d, dtype=np.float64)
             return v / max(np.linalg.norm(v), 1e-12)
