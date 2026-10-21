@@ -395,7 +395,7 @@ class CroquisPanel(QWidget):
         self.draw_btn = QPushButton(tr("Draw the view"))
         self.draw_btn.setObjectName("draw")
         self.draw_btn.setCursor(Qt.PointingHandCursor)
-        self.draw_btn.clicked.connect(self.draw)
+        self.draw_btn.clicked.connect(self._main_action)
         bottom.addWidget(self.draw_btn, 2)
         t.body.addLayout(bottom)
         from PySide6.QtWidgets import QComboBox, QSpinBox
@@ -442,6 +442,40 @@ class CroquisPanel(QWidget):
 
     def _live(self, on: bool) -> None:
         self.live.set_enabled(on)
+        self._main_label()
+
+    def _main_label(self) -> None:
+        """The big button says what it does: with the live preview on, the
+        sketch is already there, and what is wanted is to keep it."""
+        live = self.live.enabled
+        self.draw_btn.setText(tr("Save the sketch…") if live else tr("Draw the view"))
+        self.draw_btn.setToolTip(
+            tr("Draw the sketch at its full size and save it as PNG, SVG or PDF")
+            if live else "")
+        self._restyle_draw_icon()
+
+    def _restyle_draw_icon(self) -> None:
+        colour = getattr(self, "_draw_icon_colour", None)
+        if colour is None:
+            return
+        live = getattr(self, "live", None) is not None and self.live.enabled
+        self.draw_btn.setIcon(QIcon(icon_pixmap("guardar" if live else "dibujar", 18,
+                                                colour, self.devicePixelRatioF())))
+        self.draw_btn.setIconSize(QSize(18, 18))
+
+    def _main_action(self) -> None:
+        if self.live.enabled:
+            self.save_sketch()
+        else:
+            self.draw()
+
+    def context_menu(self, menu, _selection=None) -> None:
+        """Right-click in the view, while the live preview is on: save the
+        sketch shown there (File ▸ Export saves IngeTrazo's view, not it)."""
+        if not self.live.enabled:
+            return
+        act = menu.addAction(tr("Save the sketch…"))
+        act.triggered.connect(lambda: QTimer.singleShot(0, self.save_sketch))
 
     def _unfold(self, open_: bool) -> None:
         self.fine.setVisible(open_)
@@ -476,8 +510,8 @@ class CroquisPanel(QWidget):
                 "giro", 16, pal.color(QPalette.WindowText), dpr))
             acc = accent(pal)
             on_acc = QColor("#ffffff" if acc.lightness() < 170 else "#111111")
-            self.draw_btn.setIcon(QIcon(icon_pixmap("dibujar", 18, on_acc, dpr)))
-            self.draw_btn.setIconSize(QSize(18, 18))
+            self._draw_icon_colour = on_acc
+            self._restyle_draw_icon()
         finally:
             self._styling = False
 
@@ -638,6 +672,41 @@ class CroquisPanel(QWidget):
         self.status.setVisible(bool(text))
 
     def draw(self) -> None:
+        """The drawing at its full size, in its window."""
+        made = self._full_drawing()
+        if made is None:
+            return
+        layers, page = made
+        if self._window is None:
+            self._window = SketchWindow(self.app)
+        self._window.show_layers(layers, self.s["dpi"] if page else None)
+
+    def save_sketch(self) -> None:
+        """The drawing at its full size, straight to a file: the live
+        preview shows it already, at the view's size."""
+        path, chosen = QFileDialog.getSaveFileName(
+            self, tr("Save the sketch"), default_path(self.app),
+            ";;".join(SketchWindow.FILTERS))
+        if not path:
+            return
+        ext = {"PNG": ".png", "SVG": ".svg", "PDF": ".pdf"}.get(chosen[:3], ".png")
+        if not path.lower().endswith((".png", ".svg", ".pdf")):
+            path += ext
+        made = self._full_drawing()
+        if made is None:
+            return
+        layers, page = made
+        from . import export
+        if path.lower().endswith(".pdf") and page:
+            ok = export.save_pdf(layers, path, int(self.s["dpi"]))
+        else:
+            ok = export.save(layers, path)
+        self._say(tr("Saved: {path}", path=path) if ok
+                  else tr("Could not save {path}", path=path))
+
+    def _full_drawing(self):
+        """``(layers, page)`` of the view at the size chosen, or ``None``
+        when there is nothing to draw (and the panel says so)."""
         vp = self.app.viewport
         self._say(tr("Drawing…"))
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -648,7 +717,7 @@ class CroquisPanel(QWidget):
             view = drawing.View(vp, w, h)
             if not len(view):
                 self._say(tr("Nothing to draw: the view shows no lines."))
-                return
+                return None
             layers = drawing.render(vp, self.style(), w, view=view,
                                     marker=self.marker_style(),
                                     composition=self.composition(),
@@ -657,9 +726,7 @@ class CroquisPanel(QWidget):
         finally:
             QApplication.restoreOverrideCursor()
         self._say("")
-        if self._window is None:
-            self._window = SketchWindow(self.app)
-        self._window.show_layers(layers, self.s["dpi"] if page else None)
+        return layers, page
 
     def output_size(self, camera) -> tuple:
         """``(drawing width, page or None)``: S/M/L, a width of your own, or
@@ -675,6 +742,16 @@ class CroquisPanel(QWidget):
         avail_w, avail_h = pw * (1 - 2 * PAGE_MARGIN), ph * (1 - 2 * PAGE_MARGIN)
         width = int(min(avail_w, avail_h * aspect))
         return width, (pw, ph)
+
+
+def default_path(app) -> str:
+    """Where a sketch is offered to be saved: beside the document."""
+    win = app.window
+    doc = getattr(win, "current_path", None) or getattr(win, "_current_path", None)
+    if doc:
+        p = Path(str(doc))
+        return str(p.with_name(p.stem + "-croquis.png"))
+    return str(Path.home() / "croquis.png")
 
 
 class SketchWindow(QDialog):
@@ -738,12 +815,7 @@ class SketchWindow(QDialog):
         self.view.setPixmap(pm)
 
     def _default_path(self) -> str:
-        win = self.app.window
-        doc = getattr(win, "current_path", None) or getattr(win, "_current_path", None)
-        if doc:
-            p = Path(str(doc))
-            return str(p.with_name(p.stem + "-croquis.png"))
-        return str(Path.home() / "croquis.png")
+        return default_path(self.app)
 
     FILTERS = ("PNG (*.png)", "SVG (*.svg)", "PDF (*.pdf)")
 

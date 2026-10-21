@@ -24,5 +24,7 @@ def setup(app) -> None:
     panel = CroquisPanel(app)
     dock = app.add_panel("Croquis", panel)
     app.add_overlay(lambda viewport, painter: panel.live.paint(viewport, painter))
+    if hasattr(app, "add_context_menu"):
+        app.add_context_menu(panel.context_menu)
     app.add_menu_action("Croquis…", lambda: (app.show_panel(dock), panel.draw()),
                         tip=tr("Draw a freehand sketch of the current view."))

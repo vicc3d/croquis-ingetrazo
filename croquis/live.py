@@ -180,7 +180,8 @@ class LivePreview(QObject):
         from .texts import tr
         drawing_now = self.pending is not None and not self.pending[0].done()
         text = tr("Croquis: drawing…") if drawing_now else (
-            tr("Croquis live") if current else tr("Croquis: hold the view still"))
+            tr("Croquis live · right-click to save") if current
+            else tr("Croquis: hold the view still"))
         f = QFont(painter.font())
         f.setPixelSize(12)
         painter.setFont(f)

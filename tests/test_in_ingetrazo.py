@@ -614,6 +614,36 @@ def test_the_panel_follows_the_accent(window, monkeypatch):
     assert sub and sub.group(1) == "#3aa86b"
 
 
+def test_with_the_live_preview_the_sketch_is_saved_where_one_looks(window, monkeypatch, tmp_path):
+    """The live preview shows the sketch already: the big button, a
+    right-click in the view and the badge over it all offer to save it
+    (File ▸ Export saves IngeTrazo's view, not the sketch)."""
+    from PySide6.QtWidgets import QFileDialog, QMenu
+    from croquis import panel as cp
+    win, _a = window
+    panel = _panel(win)
+    menu = QMenu()
+    panel.context_menu(menu)
+    assert not menu.actions()                     # off: nothing to save
+    assert panel.draw_btn.text() == "Draw the view"
+    panel.live_switch.setChecked(True)
+    try:
+        assert panel.draw_btn.text() == "Save the sketch…"
+        panel.context_menu(menu)
+        assert [a.text() for a in menu.actions()] == ["Save the sketch…"]
+        out = tmp_path / "sketch.png"
+        monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                            staticmethod(lambda *a, **k: (str(out), "PNG (*.png)")))
+        panel.draw_btn.click()
+        assert out.is_file() and out.stat().st_size > 10_000
+        assert panel._window is None                  # straight to the file
+        from PySide6.QtGui import QImage
+        assert QImage(str(out)).width() == panel.output_size(win.viewport.camera)[0]
+    finally:
+        panel.live_switch.setChecked(False)
+    assert panel.draw_btn.text() == "Draw the view"
+
+
 def test_presets_are_complete_and_clean_reads_anything():
     from croquis import presets as ps
     for key in ps.PRESETS:

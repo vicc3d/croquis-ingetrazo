@@ -9,6 +9,10 @@ _TEXTS = {
         "The sketch over the view, drawn again each time the view is still for a moment": "El croquis sobre la vista, que se vuelve a dibujar cada vez que la vista se queda quieta un momento",
         "Croquis: drawing…": "Croquis: dibujando…",
         "Croquis live": "Croquis en vivo",
+        "Croquis live · right-click to save": "Croquis en vivo · clic derecho para guardar",
+        "Save the sketch…": "Guardar el croquis…",
+        "Draw the sketch at its full size and save it as PNG, SVG or PDF":
+            "Dibujar el croquis a su tamaño completo y guardarlo en PNG, SVG o PDF",
         "Croquis: hold the view still": "Croquis: deja la vista quieta",
         "{d} dpi": "{d} ppp",
         "Width in pixels": "Ancho en píxeles",
@@ -121,6 +125,10 @@ _TEXTS = {
         "The sketch over the view, drawn again each time the view is still for a moment": "O croqui sobre a vista, redesenhado cada vez que a vista fica parada um instante",
         "Croquis: drawing…": "Croquis: desenhando…",
         "Croquis live": "Croquis ao vivo",
+        "Croquis live · right-click to save": "Croquis ao vivo · clique direito para salvar",
+        "Save the sketch…": "Salvar o croqui…",
+        "Draw the sketch at its full size and save it as PNG, SVG or PDF":
+            "Desenhar o croqui no tamanho completo e salvá-lo em PNG, SVG ou PDF",
         "Croquis: hold the view still": "Croquis: deixe a vista parada",
         "{d} dpi": "{d} dpi",
         "Width in pixels": "Largura em pixels",
