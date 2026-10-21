@@ -644,6 +644,14 @@ def test_with_the_live_preview_the_sketch_is_saved_where_one_looks(window, monke
     assert panel.draw_btn.text() == "Draw the view"
 
 
+def test_a_right_click_does_not_hide_the_live_sketch():
+    from PySide6.QtCore import Qt
+    from croquis.live import hides_sketch
+    assert hides_sketch(Qt.LeftButton) and hides_sketch(Qt.MiddleButton)
+    assert not hides_sketch(Qt.RightButton)
+    assert not hides_sketch(Qt.NoButton)
+
+
 def test_presets_are_complete_and_clean_reads_anything():
     from croquis import presets as ps
     for key in ps.PRESETS:

@@ -58,6 +58,14 @@ class _Frozen:
         return self._h
 
 
+def hides_sketch(buttons) -> bool:
+    """Whether the sketch steps aside for the model while ``buttons`` are
+    held: the left (drawing, selecting) and the middle (orbit, pan) do; the
+    right only opens the menu, which offers to save the sketch, so it stays
+    (it vanished just as one went to save it)."""
+    return bool(buttons & (Qt.LeftButton | Qt.MiddleButton))
+
+
 class LivePreview(QObject):
     """Watches the view and keeps a sketch of it, drawn over the viewport
     by :meth:`paint` (an overlay)."""
@@ -171,7 +179,7 @@ class LivePreview(QObject):
         from PySide6.QtGui import QGuiApplication
         # While a button is held (drawing, moving), the model shows: what
         # the tool does must be seen.
-        pressed = QGuiApplication.mouseButtons() != Qt.NoButton
+        pressed = hides_sketch(QGuiApplication.mouseButtons())
         current = (self.image is not None and self.image_key == self._seen
                    and not pressed)
         if current:
