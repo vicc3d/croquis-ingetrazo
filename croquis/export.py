@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
-"""Saving a drawing: PNG, SVG in layers, PDF.
+"""Saving a drawing in IngeTrazo: PNG, SVG in layers, PDF (with Qt; the
+SVG is :mod:`.vector`'s, shared with Blender).
 
 The ink is vector in SVG and PDF: every stroke (lines, hatching,
 construction and ground strokes) is already a polygon, the outline of a
@@ -12,8 +13,6 @@ marker's ink is.
 """
 from __future__ import annotations
 
-import base64
-from xml.sax.saxutils import quoteattr
 
 import numpy as np
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QMarginsF, QPointF, QRectF, QSizeF, Qt
@@ -30,56 +29,21 @@ def save_png(layers: Layers, path: str) -> bool:
     return layers.image().save(path, "PNG")
 
 
-def _data_uri(img: QImage, fmt: str = "PNG", quality: int = -1) -> str:
+def qt_encode(rgb: np.ndarray, fmt: str, quality: int = -1) -> bytes:
+    """A picture encoded by Qt, for :mod:`.vector`."""
     ba = QByteArray()
     buf = QBuffer(ba)
     buf.open(QIODevice.WriteOnly)
-    img.save(buf, fmt, quality)
-    mime = "image/jpeg" if fmt == "JPG" else "image/png"
-    return f"data:{mime};base64,{base64.b64encode(bytes(ba)).decode('ascii')}"
-
-
-def _path_d(outline: np.ndarray) -> str:
-    pts = np.round(outline, 2)
-    head = f"M{pts[0, 0]:g},{pts[0, 1]:g}"
-    return head + "L" + " ".join(f"{x:g},{y:g}" for x, y in pts[1:]) + "Z"
+    to_qimage(rgb).save(buf, fmt, quality)
+    return bytes(ba)
 
 
 def svg_text(layers: Layers) -> str:
-    """The drawing as SVG: three layers (Inkscape's, read by Affinity and
-    Illustrator as groups), paper and fill as images, the ink as paths."""
-    w, h = layers.width, layers.height
-    ink = "#%02x%02x%02x" % INK
-    out = [
-        '<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'xmlns:xlink="http://www.w3.org/1999/xlink" '
-        f'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '
-        f'width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
-        f'  <g id="paper" inkscape:groupmode="layer" inkscape:label={quoteattr(tr("Paper"))}>',
-        f'    <image x="0" y="0" width="{w}" height="{h}" '
-        f'xlink:href="{_data_uri(to_qimage(layers.sheet), "JPG", 92)}"/>',
-        "  </g>",
-    ]
-    if layers.fill is not None:
-        ox, oy = layers.origin
-        fw, fh = layers.size
-        fill = to_qimage(layers.fill * 255.0)
-        out += [
-            f'  <g id="fill" inkscape:groupmode="layer" '
-            f'inkscape:label={quoteattr(tr("Colour and shade"))} style="mix-blend-mode:multiply">',
-            f'    <image x="{ox}" y="{oy}" width="{fw}" height="{fh}" '
-            f'xlink:href="{_data_uri(fill)}"/>',
-            "  </g>",
-        ]
-    out.append(f'  <g id="ink" inkscape:groupmode="layer" inkscape:label={quoteattr(tr("Ink"))} '
-               f'fill="{ink}" stroke="none">')
-    for s in layers.strokes:
-        op = max(0.0, min(1.0, s.opacity))
-        attr = "" if op >= 0.999 else f' fill-opacity="{op:.2f}"'
-        out.append(f'    <path d="{_path_d(s.outline)}"{attr}/>')
-    out += ["  </g>", "</svg>", ""]
-    return "\n".join(out)
+    """The drawing as SVG in layers (:func:`.vector.svg_text`, the same as
+    Blender's), its layers named in the user's language."""
+    from . import vector
+    return vector.svg_text(layers, qt_encode,
+                           (tr("Paper"), tr("Colour and shade"), tr("Ink")))
 
 
 def save_svg(layers: Layers, path: str) -> bool:

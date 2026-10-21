@@ -69,6 +69,19 @@ for style in ("colour_marker", "watercolour", "hatched"):
     check(ink > 0.002, f"{style}: there is ink")
     if style != "hatched":
         check(colour > 0.01, f"{style}: there is colour")
+# Saving: PNG, SVG in layers, PDF.
+for fmt in ("PNG", "SVG", "PDF"):
+    path = out / f"blender-hatched.{fmt.lower()}"
+    ok = ops.save_drawing(layers, str(path), fmt)
+    check(ok and path.is_file() and path.stat().st_size > 1000, f"saved as {fmt}")
+svg = (out / "blender-hatched.svg").read_text()
+check(svg.count('inkscape:groupmode="layer"') == 2 + (layers.fill is not None),
+      "the SVG has its layers")
+check(svg.count("<path ") == len(layers.strokes), "every stroke a path in the SVG")
+check("image/jpeg" in svg, "the SVG's paper encoded by Blender (JPEG)")
+pdf = (out / "blender-hatched.pdf").read_bytes()
+check(pdf.startswith(b"%PDF-1.4") and pdf.rstrip().endswith(b"%%EOF"), "the PDF is whole")
+check(b"/DCTDecode" in pdf, "the PDF's picture encoded by Blender (JPEG)")
 check(s.preset == "hatched", "a style sets its choices")
 s.hand = 10
 check(s.preset == "hatched", "the hand is not a style's choice")

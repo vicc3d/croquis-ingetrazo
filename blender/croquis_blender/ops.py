@@ -6,12 +6,17 @@ import time
 
 import bpy
 import numpy as np
-from bpy.props import StringProperty
+from bpy.props import EnumProperty, StringProperty
 
 from . import props
 from . import scene_view as sv
 
 IMAGE_NAME = "Croquis"
+#: The last drawing's layers, to save as SVG or PDF without drawing again.
+_last = {"layers": None}
+FORMATS = [("PNG", "PNG", "The drawing as a picture"),
+           ("SVG", "SVG in layers", "Paper, colour and the ink as vector paths"),
+           ("PDF", "PDF", "One page at 300 dpi, the ink as vector paths")]
 
 
 def _read_image(path: str):
@@ -74,6 +79,46 @@ def draw(context, settings=None, width: int | None = None):
     return layers, time.perf_counter() - t
 
 
+def blender_encode(rgb, fmt: str, quality: int = 90) -> bytes:
+    """A picture encoded by Blender (JPEG or PNG), for the SVG and PDF."""
+    import os
+    import tempfile
+    h, w = rgb.shape[:2]
+    img = bpy.data.images.new("croquis-encode", w, h, alpha=False)
+    try:
+        px = np.ones((h, w, 4), np.float32)
+        px[:, :, :3] = np.asarray(rgb, np.float32)[::-1] / 255.0
+        img.pixels.foreach_set(px.reshape(-1))
+        ext = ".jpg" if fmt == "JPG" else ".png"
+        fd, path = tempfile.mkstemp(suffix=ext)
+        os.close(fd)
+        try:
+            img.filepath_raw = path
+            img.file_format = "JPEG" if fmt == "JPG" else "PNG"
+            if fmt == "JPG" and quality > 0:
+                img.save(filepath=path, quality=quality)
+            else:
+                img.save(filepath=path)
+            with open(path, "rb") as fh:
+                return fh.read()
+        finally:
+            os.remove(path)
+    finally:
+        bpy.data.images.remove(img)
+
+
+def save_drawing(layers, path: str, fmt: str) -> bool:
+    """``layers`` saved at ``path`` as PNG, SVG or PDF."""
+    from .core import vector
+    if fmt == "PNG":
+        img = to_image(layers)
+        img.filepath_raw = path
+        img.file_format = "PNG"
+        img.save()
+        return True
+    return vector.save(layers, path, encode=blender_encode, dpi=300)
+
+
 def to_image(layers, name: str = IMAGE_NAME):
     """The drawing in Blender's image ``name`` (made or replaced)."""
     rgb = layers.pixels()
@@ -122,6 +167,7 @@ class CROQUIS_OT_draw(bpy.types.Operator):
         finally:
             wm.progress_end()
         img = to_image(layers)
+        _last["layers"] = layers
         context.scene.croquis_last = img.name
         show(context, img)
         self.report({"INFO"}, f"Croquis: {img.size[0]}×{img.size[1]} in {secs:.1f} s")
@@ -129,30 +175,43 @@ class CROQUIS_OT_draw(bpy.types.Operator):
 
 
 class CROQUIS_OT_save(bpy.types.Operator):
-    """Save the last drawing as a PNG"""
+    """Save the last drawing as PNG, SVG in layers or PDF"""
     bl_idname = "croquis.save"
     bl_label = "Save the drawing…"
 
     filepath: StringProperty(subtype="FILE_PATH")
-    filter_glob: StringProperty(default="*.png", options={"HIDDEN"})
+    filter_glob: StringProperty(default="*.png;*.svg;*.pdf", options={"HIDDEN"})
+    format: EnumProperty(name="Format", items=FORMATS, default="PNG")
 
     @classmethod
     def poll(cls, context):
-        return bpy.data.images.get(IMAGE_NAME) is not None
+        return _last["layers"] is not None
+
+    def _ext(self) -> str:
+        return "." + self.format.lower()
+
+    def check(self, _context) -> bool:
+        """The file name follows the format chosen."""
+        new = bpy.path.ensure_ext(self.filepath.rsplit(".", 1)[0]
+                                  if self.filepath.lower().endswith((".png", ".svg", ".pdf"))
+                                  else self.filepath, self._ext())
+        if new != self.filepath:
+            self.filepath = new
+            return True
+        return False
 
     def invoke(self, context, _event):
         if not self.filepath:
-            self.filepath = bpy.path.ensure_ext(
-                bpy.path.display_name_from_filepath(bpy.data.filepath) or "croquis", ".png")
+            self.filepath = (bpy.path.display_name_from_filepath(bpy.data.filepath)
+                             or "croquis") + self._ext()
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
     def execute(self, context):
-        img = bpy.data.images.get(IMAGE_NAME)
-        path = bpy.path.ensure_ext(self.filepath, ".png")
-        img.filepath_raw = path
-        img.file_format = "PNG"
-        img.save()
+        path = bpy.path.ensure_ext(self.filepath, self._ext())
+        if not save_drawing(_last["layers"], path, self.format):
+            self.report({"ERROR"}, f"Could not save {path}")
+            return {"CANCELLED"}
         self.report({"INFO"}, f"Saved {path}")
         return {"FINISHED"}
 
