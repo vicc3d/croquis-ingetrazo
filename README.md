@@ -90,6 +90,8 @@ PDF. One drawing core serves both programs.
 
 ![The six styles, drawn in Blender](docs/img/blender-estilos.jpg)
 
+![The Croquis tab in Blender, next to the drawing](docs/img/blender-panel.jpg)
+
 - **Install:** in Blender, **Edit ▸ Preferences ▸ Get Extensions**, look
   for *Croquis*. Or download `croquis-blender-<version>.zip` from
   [Releases](https://github.com/vicc3d/ingetrazo-croquis/releases) and use
