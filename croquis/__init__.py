@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
-"""IngeTrazo Croquis: the view of the model as a freehand sketch on paper.
+"""Croquis for IngeTrazo: the view of the model as a freehand sketch on paper.
 
 An extension for IngeTrazo (setup(app), docs/plugins.md): a «Croquis» tab
 in the side tray that draws the current view with the hand of an architect

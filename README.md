@@ -1,4 +1,4 @@
-# IngeTrazo Croquis
+# Croquis for IngeTrazo
 
 **[English](#english) · [Español](#español) · [Português](#português)**
 
@@ -54,7 +54,7 @@ for *Croquis*, press **Install** and restart IngeTrazo. A **Croquis** tab
 appears in the side tray. Updates are offered there too.
 
 **By hand:** download `croquis-<version>.zip` from
-[Releases](https://github.com/vicc3d/ingetrazo-croquis/releases), open
+[Releases](https://github.com/vicc3d/croquis-ingetrazo/releases), open
 **Extensions ▸ Open extensions folder**, unzip it there (you get a
 `croquis` folder) and restart IngeTrazo.
 
@@ -175,7 +175,7 @@ Aparece la pestaña **Croquis** en la bandeja lateral. Las actualizaciones
 llegan por ahí.
 
 **A mano:** descarga `croquis-<versión>.zip` desde
-[Releases](https://github.com/vicc3d/ingetrazo-croquis/releases), abre
+[Releases](https://github.com/vicc3d/croquis-ingetrazo/releases), abre
 **Extensiones ▸ Abrir carpeta de extensiones**, descomprímelo ahí (queda
 una carpeta `croquis`) y reinicia IngeTrazo.
 
@@ -243,7 +243,7 @@ procure *Croquis*, clique em **Instalar** e reinicie o IngeTrazo. Aparece a
 aba **Croquis** na bandeja lateral. As atualizações chegam por ali.
 
 **À mão:** baixe `croquis-<versão>.zip` em
-[Releases](https://github.com/vicc3d/ingetrazo-croquis/releases), abra
+[Releases](https://github.com/vicc3d/croquis-ingetrazo/releases), abra
 **Extensões ▸ Abrir pasta de extensões**, descompacte ali (fica uma pasta
 `croquis`) e reinicie o IngeTrazo.
 
