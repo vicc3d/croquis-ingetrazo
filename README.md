@@ -2,9 +2,9 @@
 
 **[English](#english) · [Español](#español) · [Português](#português)**
 
-An extension for [IngeTrazo](https://github.com/ingelibre/ingetrazo), and
-for [Blender](#croquis-for-blender), that draws the current view of your
-model as an architect's **freehand sketch on paper**: ink lines that run past the corners and waver with the hand, grey
+An extension for [IngeTrazo](https://github.com/ingelibre/ingetrazo) that
+draws the current view of your model as an architect's **freehand sketch on
+paper**: ink lines that run past the corners and waver with the hand, grey
 or colour marker, watercolour, hatching or high-contrast ink, on the paper
 you choose.
 
@@ -84,30 +84,8 @@ views all work.
 
 ### Croquis for Blender
 
-The same drawing, in Blender: the same styles, choices and papers, from
-the scene's camera or from the 3D view, saved as PNG, SVG in layers or
-PDF. One drawing core serves both programs.
-
-![The six styles, drawn in Blender](docs/img/blender-estilos.jpg)
-
-![The Croquis tab in Blender, next to the drawing](docs/img/blender-panel.jpg)
-
-- **Install:** in Blender, **Edit ▸ Preferences ▸ Get Extensions**, look
-  for *Croquis*. Or download `croquis-blender-<version>.zip` from
-  [Releases](https://github.com/vicc3d/ingetrazo-croquis/releases) and use
-  **Install from Disk…** in the same place. Needs Blender 5.0 or later.
-- **Use:** press **N** in the 3D viewport and open the **Croquis** tab.
-  Choose a style, draw from the **Camera** or from **This view**, pick a
-  size and press **Draw the view**: the drawing opens in an image editor.
-  **Save the drawing…** writes it as PNG, SVG in layers or PDF.
-- **What it reads:** every visible mesh, curve and text, with the colour
-  of its material (the Principled BSDF's base colour, or the average of
-  its image); the edges where faces meet at a real angle, marked sharp or
-  at a border, and the silhouette of smooth surfaces; the scene's Sun lamp
-  for the *Sun* light. Pictures on a sheet (2D people and trees with an
-  image's transparency) are left out, as in IngeTrazo.
-- The panel speaks English, Spanish and Portuguese, following Blender's
-  interface language.
+The same drawing exists for Blender, for any scene:
+[Croquis for Blender](https://github.com/vicc3d/croquis-blender).
 
 ### How it works
 
@@ -214,30 +192,11 @@ Encuadra la vista, abre la pestaña **Croquis**, elige un estilo y pulsa
 copiarlo o guardarlo. El panel sigue el tema claro u oscuro de IngeTrazo y
 su color de acento, y recuerda tus ajustes entre sesiones.
 
+
 ### Croquis para Blender
 
-El mismo dibujo en Blender: los mismos estilos, ajustes y papeles, desde
-la cámara de la escena o desde la vista 3D, y se guarda en PNG, SVG por
-capas o PDF. Un solo núcleo de dibujo sirve a los dos programas.
-
-- **Instalar:** en Blender, **Edit ▸ Preferences ▸ Get Extensions**, busca
-  *Croquis*. O descarga `croquis-blender-<versión>.zip` desde
-  [Releases](https://github.com/vicc3d/ingetrazo-croquis/releases) y usa
-  **Install from Disk…** en el mismo lugar. Necesita Blender 5.0 o
-  posterior.
-- **Uso:** pulsa **N** en la vista 3D y abre la pestaña **Croquis**. Elige
-  un estilo, dibuja desde la **Cámara** o desde **Esta vista**, elige el
-  tamaño y pulsa **Dibujar la vista**: el dibujo se abre en un editor de
-  imagen. **Guardar el dibujo…** lo guarda en PNG, SVG por capas o PDF.
-- **Qué lee:** cada malla, curva y texto visible, con el color de su
-  material (el color base del Principled BSDF, o el promedio de su
-  imagen); las aristas donde las caras forman un ángulo real, marcadas
-  como *sharp* o en un borde, y la silueta de las superficies curvas; la
-  lámpara Sun de la escena para la luz *Sol*. Las imágenes sobre un plano
-  (personas y árboles 2D con transparencia) se dejan fuera, como en
-  IngeTrazo.
-- El panel está en inglés, español y portugués, según el idioma de la
-  interfaz de Blender.
+El mismo dibujo existe para Blender, con cualquier escena:
+[Croquis para Blender](https://github.com/vicc3d/croquis-blender).
 
 ---
 
@@ -301,29 +260,11 @@ Enquadre a vista, abra a aba **Croquis**, escolha um estilo e clique em
 salvar. O painel segue o tema claro ou escuro do IngeTrazo e sua cor de
 destaque, e lembra seus ajustes entre sessões.
 
+
 ### Croquis para Blender
 
-O mesmo desenho no Blender: os mesmos estilos, ajustes e papéis, a partir
-da câmera da cena ou da vista 3D, salvo em PNG, SVG em camadas ou PDF. Um
-só núcleo de desenho serve os dois programas.
-
-- **Instalar:** no Blender, **Edit ▸ Preferences ▸ Get Extensions**,
-  procure *Croquis*. Ou baixe `croquis-blender-<versão>.zip` em
-  [Releases](https://github.com/vicc3d/ingetrazo-croquis/releases) e use
-  **Install from Disk…** no mesmo lugar. Precisa do Blender 5.0 ou
-  posterior.
-- **Uso:** pressione **N** na vista 3D e abra a aba **Croquis**. Escolha um
-  estilo, desenhe a partir da **Câmera** ou de **Esta vista**, escolha o
-  tamanho e clique em **Desenhar a vista**: o desenho abre num editor de
-  imagem. **Salvar o desenho…** salva em PNG, SVG em camadas ou PDF.
-- **O que lê:** cada malha, curva e texto visível, com a cor do seu
-  material (a cor base do Principled BSDF, ou a média da sua imagem); as
-  arestas onde as faces formam um ângulo real, marcadas como *sharp* ou
-  numa borda, e a silhueta das superfícies curvas; a lâmpada Sun da cena
-  para a luz *Sol*. Imagens sobre um plano (pessoas e árvores 2D com
-  transparência) ficam de fora, como no IngeTrazo.
-- O painel fala inglês, espanhol e português, conforme o idioma da
-  interface do Blender.
+O mesmo desenho existe para o Blender, com qualquer cena:
+[Croquis para Blender](https://github.com/vicc3d/croquis-blender).
 
 ---
 
