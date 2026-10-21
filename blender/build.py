@@ -7,7 +7,7 @@ Blender's own ``extension build``.
     python3 blender/build.py [--blender /path/to/blender] [--stage-only]
 
 Leaves build/blender/croquis/ (the staged package) and, unless
-``--stage-only``, build/blender/croquis-<version>.zip next to it.
+``--stage-only``, build/blender/croquis-blender-<version>.zip next to it.
 """
 from __future__ import annotations
 
@@ -52,8 +52,14 @@ def main() -> int:
     print("staged", pkg)
     if args.stage_only:
         return 0
-    return subprocess.call([args.blender, "--command", "extension", "build",
-                            "--source-dir", str(pkg), "--output-dir", str(out)])
+    rc = subprocess.call([args.blender, "--command", "extension", "build",
+                          "--source-dir", str(pkg), "--output-dir", str(out)])
+    if rc == 0:
+        # Named apart from IngeTrazo's croquis-<version>.zip.
+        for z in out.glob("croquis-*.zip"):
+            if not z.name.startswith("croquis-blender-"):
+                z.replace(out / z.name.replace("croquis-", "croquis-blender-", 1))
+    return rc
 
 
 if __name__ == "__main__":
