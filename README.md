@@ -327,6 +327,14 @@ só núcleo de desenho serve os dois programas.
 
 ---
 
+## Support · Apoyo · Apoio
+
+Croquis is free. If it is useful to you, you can buy me a coffee on
+[Ko-fi](https://ko-fi.com/vicc3d). · Croquis es gratis; si te sirve, puedes
+invitarme un café en [Ko-fi](https://ko-fi.com/vicc3d). · O Croquis é
+gratuito; se for útil, você pode me pagar um café no
+[Ko-fi](https://ko-fi.com/vicc3d).
+
 ## Credits · Créditos
 
 **Concept, UX/UI & Design:** [Victor Crespo](https://3dvic.com)
