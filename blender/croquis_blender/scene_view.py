@@ -178,9 +178,11 @@ def _arr(coll, attr, n, width, dtype):
     return out.reshape(n, width) if width > 1 else out
 
 
-def mesh_parts(mesh, matrix):
+def mesh_parts(mesh, matrix, cutouts=()):
     """One mesh in world space: ``(tris (T,3,3), tri_mat (T,), hard (E,2,3),
-    soft (S,2,3), soft_n (S,2,3))``."""
+    soft (S,2,3), soft_n (S,2,3))``. The faces of the material slots in
+    ``cutouts`` (pictures on a sheet) are left out, and the edges that
+    bound only them."""
     m = np.array(matrix, dtype=np.float64).reshape(4, 4)
     L, t = m[:3, :3], m[:3, 3]
     nv = len(mesh.vertices)
@@ -189,6 +191,13 @@ def mesh_parts(mesh, matrix):
     nt = len(mesh.loop_triangles)
     tv = _arr(mesh.loop_triangles, "vertices", nt, 3, np.int32)
     tmat = _arr(mesh.loop_triangles, "material_index", nt, 1, np.int32)
+    pmat = _arr(mesh.polygons, "material_index", len(mesh.polygons), 1, np.int32)
+    gone = np.isin(pmat, list(cutouts)) if len(cutouts) else np.zeros(len(pmat), bool)
+    if gone.any() and nt:
+        tpoly = _arr(mesh.loop_triangles, "polygon_index", nt, 1, np.int32)
+        keep_t = ~gone[tpoly]
+        tv, tmat = tv[keep_t], tmat[keep_t]
+        nt = len(tv)
     tris = co[tv] if nt else np.zeros((0, 3, 3))
     # Each edge's faces, from the loops.
     ne, npoly, nl = len(mesh.edges), len(mesh.polygons), len(mesh.loops)
@@ -227,10 +236,66 @@ def mesh_parts(mesh, matrix):
     dot[two] = np.einsum("ij,ij->i", pnorm[first[two]], pnorm[second[two]])
     hard_e = (count != 2) | sharp | (dot < cos_hard)
     soft_e = ~hard_e & (dot < cos_flat)
+    if gone.any():
+        # An edge of a picture's sheet only: not drawn.
+        kept = np.bincount(le, weights=(~gone[lp]).astype(np.float64),
+                           minlength=ne) if len(le) else np.zeros(ne)
+        only_gone = (count > 0) & (kept == 0)
+        hard_e &= ~only_gone
+        soft_e &= ~only_gone
     seg = co[ev] if ne else np.zeros((0, 2, 3))
     soft_n = np.stack([pnorm[first[soft_e]], pnorm[second[soft_e]]], axis=1) \
         if soft_e.any() else np.zeros((0, 2, 3))
     return tris, tmat, seg[hard_e], seg[soft_e], soft_n
+
+
+def _alpha_from_image(mat) -> bool:
+    """Whether the material's transparency comes from an image (a cut-out:
+    a figure, a tree drawn on a plane)."""
+    if mat is None or not mat.use_nodes or mat.node_tree is None:
+        return False
+    for node in mat.node_tree.nodes:
+        alpha = node.inputs.get("Alpha") if hasattr(node, "inputs") else None
+        if alpha is not None and alpha.is_linked:
+            return True
+    return False
+
+
+def see_through(obj) -> bool:
+    """A face-me figure IngeTrazo Sync marked as such: left out whole, as
+    IngeTrazo's Croquis does."""
+    own = getattr(obj, "original", obj)
+    return bool(own.get("ingetrazo_billboard"))
+
+
+#: A material on more faces than this is not a picture on a sheet.
+CUTOUT_FACES = 16
+
+
+def cutout_slots(obj, mesh) -> set:
+    """The material slots that are pictures on a sheet (a figure, a tree
+    on a plane): their transparency from an image, on a few faces in one
+    plane. Drawn, such a sheet was a solid black rectangle; IngeTrazo's
+    Croquis leaves its figures out, and so does this."""
+    mats = [ms.material for ms in obj.material_slots] or list(mesh.materials)
+    out = set()
+    np_ = len(mesh.polygons)
+    if not np_:
+        return out
+    pmat = _arr(mesh.polygons, "material_index", np_, 1, np.int32)
+    normals = None
+    for i, m in enumerate(mats):
+        if not _alpha_from_image(m):
+            continue
+        sel = np.nonzero(pmat == i)[0]
+        if not len(sel) or len(sel) > CUTOUT_FACES:
+            continue
+        if normals is None:
+            normals = _arr(mesh.polygons, "normal", np_, 3, np.float32)
+        n = normals[sel]
+        if np.all(np.abs(n @ n[0]) > 0.999):
+            out.add(i)
+    return out
 
 
 class BlenderView:
@@ -261,8 +326,13 @@ class BlenderView:
                 continue
             if mesh is None:
                 continue
+            if see_through(obj):
+                if obj.type != "MESH":
+                    obj.to_mesh_clear()
+                continue
             try:
-                t, tm, h, s, sn = mesh_parts(mesh, inst.matrix_world)
+                t, tm, h, s, sn = mesh_parts(mesh, inst.matrix_world,
+                                             cutout_slots(obj, mesh))
                 slots = [ms.material for ms in obj.material_slots] or list(mesh.materials)
                 cols = [material_colour(mt) for mt in slots] or [None]
                 per = np.array([colour_of(tuple(round(v, 3) for v in (c or DEFAULT_FACE_COLOR)))

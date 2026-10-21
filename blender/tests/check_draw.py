@@ -97,6 +97,32 @@ check(sun is not None and abs(math.hypot(*sun) - 1) < 1e-6, "the Sun lamp is fou
 tris, hard, soft, soft_n = v.hlr_geometry()
 check(len(soft) > 0 and len(hard) >= 12, f"hard {len(hard)} and soft {len(soft)} edges")
 
+# A picture on a sheet (an image's transparency, a few faces in a plane),
+# even joined into another object, is left out; the solid next to it stays.
+img = bpy.data.images.new("figure", 8, 8, alpha=True)
+fig = bpy.data.materials.new("Figure")
+fig.use_nodes = True
+nt = fig.node_tree
+tex = nt.nodes.new("ShaderNodeTexImage")
+tex.image = img
+nt.links.new(tex.outputs["Alpha"], nt.nodes["Principled BSDF"].inputs["Alpha"])
+bpy.ops.mesh.primitive_cube_add(size=1, location=(-3, 0, 0.5))
+solid = bpy.context.object
+bpy.ops.mesh.primitive_plane_add(size=2, location=(-3, -2, 1), rotation=(math.radians(90), 0, 0))
+sheet = bpy.context.object
+sheet.data.materials.append(fig)
+bpy.ops.object.select_all(action="DESELECT")
+solid.select_set(True)
+sheet.select_set(True)
+bpy.context.view_layer.objects.active = solid
+bpy.ops.object.join()
+joined = bpy.context.object
+check(sv.cutout_slots(joined, joined.data) == {len(joined.material_slots) - 1},
+      "the picture's material is a cut-out")
+t, _m, h, _s, _n = sv.mesh_parts(joined.data, joined.matrix_world,
+                                 sv.cutout_slots(joined, joined.data))
+check(len(t) == 12 and len(h) == 12, f"only the cube is drawn ({len(t)} triangles, {len(h)} edges)")
+
 croquis.unregister()
 print("FAILURES:", len(failures))
 sys.exit(1 if failures else 0)
