@@ -23,7 +23,7 @@ CORE = ROOT / "croquis"
 #: The drawing, without IngeTrazo's panel, live preview or Qt export.
 CORE_MODULES = ("compose", "drawing", "hatch", "ink", "marker", "palette",
                 "paper", "presets", "raster", "shadow", "strokes",
-                "vector", "visibility", "watercolour")
+                "texts", "vector", "visibility", "watercolour")
 
 
 def stage(out: Path) -> Path:

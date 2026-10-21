@@ -8,7 +8,7 @@ import bpy
 import numpy as np
 from bpy.props import EnumProperty, StringProperty
 
-from . import props
+from . import i18n, props
 from . import scene_view as sv
 
 IMAGE_NAME = "Croquis"
@@ -162,7 +162,7 @@ class CROQUIS_OT_draw(bpy.types.Operator):
         try:
             layers, secs = draw(context)
         except ValueError as exc:
-            self.report({"WARNING"}, str(exc))
+            self.report({"WARNING"}, i18n.tr(str(exc)))
             return {"CANCELLED"}
         finally:
             wm.progress_end()
@@ -170,7 +170,8 @@ class CROQUIS_OT_draw(bpy.types.Operator):
         _last["layers"] = layers
         context.scene.croquis_last = img.name
         show(context, img)
-        self.report({"INFO"}, f"Croquis: {img.size[0]}×{img.size[1]} in {secs:.1f} s")
+        self.report({"INFO"}, i18n.tr("Croquis: {w}×{h} in {s} s", w=img.size[0],
+                                      h=img.size[1], s=f"{secs:.1f}"))
         return {"FINISHED"}
 
 
@@ -210,9 +211,9 @@ class CROQUIS_OT_save(bpy.types.Operator):
     def execute(self, context):
         path = bpy.path.ensure_ext(self.filepath, self._ext())
         if not save_drawing(_last["layers"], path, self.format):
-            self.report({"ERROR"}, f"Could not save {path}")
+            self.report({"ERROR"}, i18n.tr("Could not save {path}", path=path))
             return {"CANCELLED"}
-        self.report({"INFO"}, f"Saved {path}")
+        self.report({"INFO"}, i18n.tr("Saved {path}", path=path))
         return {"FINISHED"}
 
 

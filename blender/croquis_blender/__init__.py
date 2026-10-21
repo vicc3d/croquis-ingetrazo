@@ -3,9 +3,9 @@
 """Croquis for Blender: the camera's view as an architect's freehand
 sketch. The drawing itself is IngeTrazo Croquis's (``core``, copied in
 when the extension is built); this package reads the scene for it."""
-from . import ops, props, ui
+from . import i18n, ops, props, ui
 
-_modules = (props, ops, ui)
+_modules = (i18n, props, ops, ui)
 
 
 def register() -> None:
