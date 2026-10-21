@@ -46,17 +46,19 @@ def light_matrix(tris: np.ndarray, light: np.ndarray):
     return M, max(hu, hv) * 2.0 / MAP_SIZE
 
 
-def pixel_points(view, index: np.ndarray, normals: np.ndarray, tris: np.ndarray):
+def pixel_points(view, index: np.ndarray, normals: np.ndarray, tris: np.ndarray,
+                 at=(0.5, 0.5)):
     """World point of every model pixel of the view (where ``index`` ≥ 0),
-    as (K, 3), plus the pixels' (row, col): the sight ray through the pixel
-    centre, met with the plane of the triangle seen there."""
+    as (K, 3), plus the pixels' (row, col): the sight ray through the point
+    ``at`` of the pixel (its centre by default), met with the plane of the
+    triangle seen there."""
     rows, cols = np.nonzero(index >= 0)
     if not len(rows):
         return np.empty((0, 3)), rows, cols
     h, w = index.shape
     Minv = np.linalg.inv(view.M)
-    nx = (cols + 0.5) / w * 2.0 - 1.0
-    ny = 1.0 - (rows + 0.5) / h * 2.0
+    nx = (cols + at[0]) / w * 2.0 - 1.0
+    ny = 1.0 - (rows + at[1]) / h * 2.0
 
     def unproject(z):
         c = np.stack([nx, ny, np.full_like(nx, z), np.ones_like(nx)], axis=1)
@@ -102,7 +104,8 @@ def shadow_map(tris: np.ndarray, light: np.ndarray):
     return M, texel, smap
 
 
-def ground_shadow(view, light: np.ndarray, reach: float = 4.0, pack=None) -> np.ndarray:
+def ground_shadow(view, light: np.ndarray, reach: float = 4.0, pack=None,
+                  at=(0.5, 0.5)) -> np.ndarray:
     """(H, W) bools: the background pixels where the view sees the level
     ground (:func:`ground_level`), no farther than ``reach`` times the
     model's size from it, and the model shades it."""
@@ -117,8 +120,8 @@ def ground_shadow(view, light: np.ndarray, reach: float = 4.0, pack=None) -> np.
         return out
     z0 = ground_level(tris)
     Minv = np.linalg.inv(view.M)
-    nx = (cols + 0.5) / w * 2.0 - 1.0
-    ny = 1.0 - (rows + 0.5) / h * 2.0
+    nx = (cols + at[0]) / w * 2.0 - 1.0
+    ny = 1.0 - (rows + at[1]) / h * 2.0
 
     def unproject(z):
         c = np.stack([nx, ny, np.full_like(nx, z), np.ones_like(nx)], axis=1)
@@ -142,7 +145,8 @@ def ground_shadow(view, light: np.ndarray, reach: float = 4.0, pack=None) -> np.
     return out
 
 
-def cast_shadow(view, normals: np.ndarray, light: np.ndarray, pack=None) -> np.ndarray:
+def cast_shadow(view, normals: np.ndarray, light: np.ndarray, pack=None,
+                at=(0.5, 0.5)) -> np.ndarray:
     """(H, W) bools of the view: the model's pixels the light does not reach
     because something stands between them and it. ``normals``: per
     triangle, turned toward the eye."""
@@ -152,7 +156,7 @@ def cast_shadow(view, normals: np.ndarray, light: np.ndarray, pack=None) -> np.n
         return shadow
     L = light / max(np.linalg.norm(light), 1e-12)
     M, texel, smap = pack if pack is not None else shadow_map(tris, L)
-    P, rows, cols = pixel_points(view, index, normals, tris)
+    P, rows, cols = pixel_points(view, index, normals, tris, at)
     if not len(P):
         return shadow
     # Only what faces the light can be shadowed by something else; the
@@ -165,3 +169,25 @@ def cast_shadow(view, normals: np.ndarray, light: np.ndarray, pack=None) -> np.n
     P = P + n * (2.0 * texel) + L * (1.0 * texel)
     shadow[rows, cols] = _blocked(P, M, smap) & (facing > 0.02)
     return shadow
+
+
+#: Where in a pixel the shadow is looked at: four points, not the centre
+#: alone (see :func:`settled`).
+SAMPLES = ((0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75))
+
+
+def settled(shade, region: np.ndarray) -> np.ndarray:
+    """A shadow that a hand would draw, from ``shade(at)`` (the (H, W)
+    bools of a shadow looked at the point ``at`` of every pixel): looked
+    at four points of each pixel, the share in shadow averaged with the
+    pixels around within ``region`` (the model, or the ground), and shadow
+    where half or more is. A railing's bars cast stripes finer than the
+    pixels: looked at once per pixel they came out as a grid of dots (a
+    moiré); averaged they give the band one shade. A shadow wider than a
+    pixel or two keeps its edge where it was."""
+    from .marker import _box_blur
+    cover = sum(shade(at).astype(np.float64) for at in SAMPLES) / len(SAMPLES)
+    reg = region.astype(np.float64)
+    share = _box_blur(cover * reg, 1) / np.maximum(_box_blur(reg, 1), 1e-9)
+    return region & (share >= 0.5)
+

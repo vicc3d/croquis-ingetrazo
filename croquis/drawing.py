@@ -119,9 +119,15 @@ def shade_maps(view: View, style: mk.MarkerStyle) -> dict:
     n_planes = int(plane_of.max()) + 1 if len(plane_of) else 0
     if style.shadows and len(view.tris):
         pack = sh.shadow_map(view.tris, light)
-        cast = sh.cast_shadow(view, normals, light, pack)
+        # Each shadow looked at four points of a pixel and settled within
+        # where it falls (the model, the ground): no moiré of dots where a
+        # railing's bars cast stripes finer than the pixels.
+        model = view.index >= 0
+        cast = sh.settled(lambda at: sh.cast_shadow(view, normals, light, pack, at),
+                          model)
         values = np.where(cast & (values >= 0), 3, values).astype(np.int8)
-        ground = sh.ground_shadow(view, light, pack=pack)
+        ground = sh.settled(lambda at: sh.ground_shadow(view, light, pack=pack, at=at),
+                            ~model)
         values = np.where(ground, 3, values).astype(np.int8)
         plane = np.where(ground, n_planes, plane)
     colour = tone = None
