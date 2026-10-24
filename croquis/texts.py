@@ -239,11 +239,15 @@ _TEXTS = {
 }
 
 
+#: ``() -> "es" / "pt-BR" / …``: the host's language (IngeTrazo's, set in
+#: croquis/host.py). English when unset.
+LANGUAGE = None
+
+
 def tr(text: str, **kw) -> str:
     try:
-        from core.i18n import current_language
-        lang = current_language()
-    except Exception:                    # noqa: BLE001 (outside IngeTrazo)
+        lang = LANGUAGE() if LANGUAGE is not None else "en"
+    except Exception:                    # noqa: BLE001 (a host's hiccup)
         lang = "en"
     out = _TEXTS.get(lang, {}).get(text, text)
     return out.format(**kw) if kw else out

@@ -518,7 +518,7 @@ class CroquisPanel(QWidget):
     def _paper_icons(self, pal, dpr) -> None:
         from PySide6.QtGui import QPainter as _P, QPen
         from . import paper as pp
-        from .drawing import to_qimage
+        from .host import to_qimage
         for key, b in self.papers.items():
             if key == "custom":
                 pm = QPixmap(int(40 * dpr), int(26 * dpr))

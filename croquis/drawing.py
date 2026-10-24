@@ -12,12 +12,6 @@ from __future__ import annotations
 
 import numpy as np
 
-try:                    # IngeTrazo: Qt paints. Elsewhere (Blender): NumPy.
-    from PySide6.QtCore import QPointF, Qt
-    from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
-except ImportError:     # pragma: no cover (exercised in Blender)
-    QPointF = Qt = QColor = QImage = QPainter = QPolygonF = None
-
 from . import compose as cp
 from . import hatch
 from . import ink
@@ -34,6 +28,12 @@ INK = (29, 26, 23)               # not black: a warm dark ink
 #: The depth buffer is never wider than this (lines and fills are scaled up
 #: from it): enough for a sketch, and quick.
 MAX_BUFFER_WIDTH = 2000
+#: What a host lends the drawing (IngeTrazo: Qt, set by croquis/host.py;
+#: Blender sets none and gets NumPy): ``RESIZE(rgb, width, height)``, a
+#: smoother scaling than :func:`resize_array`; ``PAINT(layers)``, the
+#: drawing as the host's image.
+RESIZE = None
+PAINT = None
 
 
 class View:
@@ -83,27 +83,13 @@ def paper(width: int, height: int, seed: int = 7) -> np.ndarray:
     return np.array(PAPER, dtype=np.float64)[None, None, :] * tone[:, :, None]
 
 
-def to_qimage(rgb: np.ndarray) -> "QImage":
-    h, w = rgb.shape[:2]
-    a = np.ascontiguousarray(np.dstack([np.clip(rgb, 0, 255).astype(np.uint8),
-                                        np.full((h, w), 255, dtype=np.uint8)]))
-    img = QImage(a.tobytes(), w, h, w * 4, QImage.Format_RGBA8888)
-    return img.convertToFormat(QImage.Format_ARGB32_Premultiplied)
-
-
 def _resize(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
     """Smoothly scale an (h, w, 3) float image."""
     if rgb.shape[1] == width and rgb.shape[0] == height:
         return rgb
-    if QImage is None:
-        return resize_array(rgb, width, height)
-    img = to_qimage(rgb).scaled(width, height, Qt.IgnoreAspectRatio,
-                                Qt.SmoothTransformation)
-    img = img.convertToFormat(QImage.Format_RGBA8888)
-    a = np.frombuffer(img.constBits(), dtype=np.uint8,
-                      count=img.bytesPerLine() * height)
-    return a.reshape(height, img.bytesPerLine())[:, :width * 4].reshape(
-        height, width, 4)[:, :, :3].astype(np.float64)
+    if RESIZE is not None:
+        return RESIZE(rgb, width, height)
+    return resize_array(rgb, width, height)
 
 
 def shade_maps(view: View, style: mk.MarkerStyle) -> dict:
@@ -177,8 +163,8 @@ def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None,
 
 
 def resize_array(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
-    """:func:`_resize` in NumPy (bilinear, pixel centres aligned), where
-    there is no Qt."""
+    """:func:`_resize` in NumPy (bilinear, pixel centres aligned), when the
+    host lends no :data:`RESIZE`."""
     h, w = rgb.shape[:2]
     ys = np.clip((np.arange(height) + 0.5) * h / height - 0.5, 0, h - 1)
     xs = np.clip((np.arange(width) + 0.5) * w / width - 0.5, 0, w - 1)
@@ -193,17 +179,6 @@ def resize_array(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
 
 #: The name it had in 0.3.0.
 marker_layer = fill_layer
-
-
-def draw_strokes(img: "QImage", strokes: list, ink=INK) -> None:
-    p = QPainter(img)
-    p.setRenderHint(QPainter.Antialiasing, True)
-    p.setPen(Qt.NoPen)
-    for s in strokes:
-        alpha = int(255 * max(0.0, min(1.0, s.opacity)))
-        p.setBrush(QColor(ink[0], ink[1], ink[2], alpha))
-        p.drawPolygon(QPolygonF([QPointF(float(x), float(y)) for x, y in s.outline]))
-    p.end()
 
 
 def drawing_size(camera, width: int) -> tuple:
@@ -242,14 +217,15 @@ class Layers:
         out[oy:oy + h, ox:ox + w] *= self.fill
         return out
 
-    def image(self) -> "QImage":
-        img = to_qimage(self.coloured_sheet())
-        draw_strokes(img, self.strokes)
-        return img
+    def image(self):
+        """The drawing as the host's own image (IngeTrazo: a QImage)."""
+        if PAINT is None:
+            raise RuntimeError("no painter: use pixels()")
+        return PAINT(self)
 
     def pixels(self) -> np.ndarray:
         """The drawing as (H, W, 3) bytes, without Qt: the strokes laid by
-        :mod:`.raster` (as QPainter would, to a hair)."""
+        :mod:`.raster` (as IngeTrazo's painter would, to a hair)."""
         from . import raster
         rgb = np.array(self.coloured_sheet(), dtype=np.float64)
         raster.lay_strokes(rgb, self.strokes, INK)
@@ -315,7 +291,7 @@ def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
            marker: mk.MarkerStyle | None = None,
            composition: cp.Composition | None = None,
            paper_kind: str = "cream", paper_image: str = "",
-           page: tuple | None = None) -> "QImage":
-    """:func:`render`, as one image."""
+           page: tuple | None = None):
+    """:func:`render`, as the host's image (:meth:`Layers.image`)."""
     return render(viewport, style, width, view, marker, composition,
                   paper_kind, paper_image, page).image()

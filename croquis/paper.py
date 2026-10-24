@@ -96,34 +96,19 @@ def make(kind: str, width: int, height: int, seed: int = 7,
 IMAGE_READER = None
 
 
+#: ``(path, width, height) -> (H, W, 3) floats`` or None: a host's own way
+#: to lay an image over the sheet (IngeTrazo: Qt's, croquis/host.py).
+IMAGE_COVER = None
+
+
 def _from_image(path: str, width: int, height: int):
     """An image of your own as the sheet: repeated when small, else
     stretched to cover it (cropped to keep its proportions)."""
     if not Path(path).is_file():
         return None
-    try:
-        from PySide6.QtCore import Qt
-        from PySide6.QtGui import QImage, QPainter
-    except ImportError:
-        return _from_array(path, width, height)
-    src = QImage(path)
-    if src.isNull():
-        return None
-    out = QImage(width, height, QImage.Format_RGB32)
-    p = QPainter(out)
-    if src.width() < TILE_BELOW:
-        from PySide6.QtGui import QBrush
-        p.fillRect(0, 0, width, height, QBrush(src))
-    else:
-        scaled = src.scaled(width, height, Qt.KeepAspectRatioByExpanding,
-                            Qt.SmoothTransformation)
-        p.drawImage((width - scaled.width()) // 2, (height - scaled.height()) // 2, scaled)
-    p.end()
-    out = out.convertToFormat(QImage.Format_RGB888)
-    a = np.frombuffer(out.constBits(), dtype=np.uint8,
-                      count=out.bytesPerLine() * height)
-    return a.reshape(height, out.bytesPerLine())[:, :width * 3].reshape(
-        height, width, 3).astype(np.float32)
+    if IMAGE_COVER is not None:
+        return IMAGE_COVER(path, width, height)
+    return _from_array(path, width, height)
 
 
 def _from_array(path: str, width: int, height: int):

@@ -18,7 +18,8 @@ import numpy as np
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QMarginsF, QPointF, QRectF, QSizeF, Qt
 from PySide6.QtGui import QColor, QImage, QPageLayout, QPageSize, QPainter, QPdfWriter, QPolygonF
 
-from .drawing import INK, Layers, to_qimage
+from .drawing import INK, Layers
+from .host import to_qimage
 from .texts import tr
 
 #: The resolution a PDF of a drawing in pixels is laid out at.

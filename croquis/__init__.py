@@ -17,6 +17,12 @@ from __future__ import annotations
 
 __version__ = "0.14.0"
 
+# The drawing core knows neither IngeTrazo nor Qt (Croquis for Blender shares
+# it): lend it both before anything draws.
+from . import host as _host  # noqa: E402
+
+_host.install()
+
 
 def setup(app) -> None:
     from .panel import CroquisPanel

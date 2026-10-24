@@ -66,6 +66,11 @@ def triangle_normals(tris: np.ndarray) -> np.ndarray:
     return n / ln[:, None]
 
 
+
+#: ``(scene) -> (x, y, z)`` toward the host's sun, or None (night): IngeTrazo's
+#: Shadows panel (croquis/host.py). A scene's own ``croquis_sun()`` wins.
+SUN = None
+
 def light_direction(camera, scene, kind: str):
     """Unit vector toward the light, in world axes. ``classic``: from the
     upper left and a little behind the viewer, the sketcher's habit, so the
@@ -79,8 +84,7 @@ def light_direction(camera, scene, kind: str):
             d = own()
         else:
             try:
-                from core.render_blender import sun_toward
-                d = sun_toward(scene)
+                d = SUN(scene) if SUN is not None else None
             except Exception:            # noqa: BLE001 (older IngeTrazo)
                 d = None
         if d is not None:

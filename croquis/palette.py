@@ -75,126 +75,11 @@ def _lightness(rgb) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-def _from_pick_index(viewport, colour_of):
-    from core.group import effective_material
-    from core.materials import effective_attrs
-    idx = viewport._pick_flat(viewport._pick_index(near="all"))
-    if getattr(idx, "tri_v0", None) is None or not len(idx.tri_v0):
-        return None
-    keep = idx.ent_vis[idx.tri_ent]
-    v0 = idx.tri_v0[keep]
-    tris = np.stack([v0, v0 + idx.tri_e1[keep], v0 + idx.tri_e2[keep]],
-                    axis=1).astype(np.float64)
-    ents = idx.tri_ent[keep]
-    marker = np.full(len(idx.entities), -1, dtype=np.int64)
-    tone = np.full(len(idx.entities), 1.0)
-    paints: dict = {}
-
-    def paint_of(group):
-        # A group's paint, once per group, not once per face.
-        key = id(group)
-        if key not in paints:
-            paints[key] = effective_material(group)
-        return paints[key]
-
-    wanted = np.unique(ents)
-    parts = getattr(idx.entities, "_parts", None)
-    starts = getattr(idx.entities, "_starts", None)
-    if parts is None or starts is None:
-        _one_by_one(idx.entities, wanted, 0, marker, tone, colour_of,
-                    paint_of, effective_attrs)
-    else:
-        bounds = np.r_[np.asarray(starts, dtype=np.int64), len(idx.entities)]
-        # ``wanted`` is sorted: each piece's faces are one slice of it.
-        cut = np.searchsorted(wanted, bounds)
-        for k, part in enumerate(parts):
-            lo = bounds[k]
-            es = wanted[cut[k]:cut[k + 1]]
-            if len(es) and not _from_deferred(part, es - lo, es, marker, tone,
-                                              colour_of, paint_of,
-                                              effective_attrs):
-                _one_by_one(part, es, lo, marker, tone, colour_of, paint_of,
-                            effective_attrs)
-    return tris, marker[ents], tone[ents]
-
-
-def _one_by_one(part, es, lo, marker, tone, colour_of, paint_of,
-                effective_attrs):
-    """The colours of ``part``'s faces ``es`` (``lo`` its first entity),
-    face by face."""
-    for e in es.tolist():
-        face, group = part[e - lo]
-        attrs = face.attrs
-        if group is not None:
-            attrs = effective_attrs(face.attrs, paint_of(group))
-        marker[e], tone[e] = colour_of(attrs)
-
-
-def _from_deferred(part, local, es, marker, tone, colour_of, paint_of,
-                   effective_attrs) -> bool:
-    """The colours of a piece of the pick index whose faces belong to a
-    lazy mesh (IngeTrazo 0.5.9's engine), read from the document's arrays
-    as IngeTrazo's own ``core.mesh.face_attrs`` does: each face's paint is
-    an entry of a short table, so each entry is worked out once and no
-    face is built. ``False`` when the piece is not one (then the faces are
-    read one by one)."""
-    faces = getattr(part, "faces", None)
-    mesh = getattr(faces, "mesh", None)
-    index = getattr(faces, "index", None)
-    if mesh is None or index is None or type(mesh).__name__ != "DeferredMesh":
-        return False
-    src = getattr(mesh, "__dict__", {}).get("_deferred_source")
-    if not isinstance(src, dict) or "face_attr" not in src:
-        return False
-    try:
-        from formats.igz import _face_attrs_from_json
-        table = (src.get("meta") or {}).get("face_attrs") or []
-        keys = np.asarray(src["face_attr"], dtype=np.int64)[
-            np.asarray(index, dtype=np.int64)[local]]
-    except Exception:                    # noqa: BLE001 (another IngeTrazo)
-        return False
-    group = getattr(part, "owner", None)
-    uniq, inv = np.unique(keys, return_inverse=True)
-    ms = np.empty(len(uniq), dtype=np.int64)
-    ts = np.empty(len(uniq))
-    for i, key in enumerate(uniq.tolist()):
-        attrs = (_face_attrs_from_json(table[key]) or {}) if key >= 0 else {}
-        if group is not None:
-            attrs = effective_attrs(attrs, paint_of(group))
-        ms[i], ts[i] = colour_of(attrs)
-    marker[es], tone[es] = ms[inv], ts[inv]
-    return True
-
-
-def _from_scene(viewport, colour_of):
-    """The same by walking the scene: slower, but on IngeTrazo's public
-    model only (the loose faces, and every group in world space)."""
-    from core.group import effective_material, world_mesh
-    scene = viewport.scene
-    tris, marker, tone = [], [], []
-
-    def eat(mesh, paint, visible=lambda _f: True):
-        from core.materials import effective_attrs
-        for f in mesh.faces:
-            if (f.attrs or {}).get("hidden") or not visible(f):
-                continue
-            m, t = colour_of(effective_attrs(f.attrs, paint) if paint else f.attrs)
-            for a, b, c in f.triangulate():
-                tris.append(((a.x(), a.y(), a.z()), (b.x(), b.y(), b.z()),
-                             (c.x(), c.y(), c.z())))
-                marker.append(m)
-                tone.append(t)
-
-    eat(scene.loose_mesh, None, scene.entity_visible)
-    for g in scene.groups:
-        if not scene.entity_visible(g) or getattr(g, "billboard", False):
-            continue
-        mesh = world_mesh(g) if g.xform is not None or g.children else g.mesh
-        eat(mesh, effective_material(g))
-    if not tris:
-        return None
-    return (np.array(tris, dtype=np.float64).reshape(-1, 3, 3),
-            np.array(marker, dtype=np.int64), np.array(tone, dtype=np.float64))
+#: Where the host reads the visible faces and their paint, tried in order:
+#: ``source(viewport, colour_of)`` -> ``(tris, marker, tone)`` or None.
+#: IngeTrazo's are in croquis/host.py; Blender hands its own
+#: (``viewport.croquis_colours``) and sets none.
+SOURCES = ()
 
 
 def _cache_key(viewport):
@@ -257,7 +142,7 @@ def _triangle_colours(viewport):
             cache[key] = (nearest_marker(key), _lightness(key))
         return cache[key]
 
-    for source in (_from_pick_index, _from_scene):
+    for source in SOURCES:
         try:
             out = source(viewport, colour_of)
         except Exception:                # noqa: BLE001 (another IngeTrazo)
