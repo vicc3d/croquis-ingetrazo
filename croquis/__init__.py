@@ -17,8 +17,8 @@ from __future__ import annotations
 
 __version__ = "0.14.0"
 
-# The drawing core knows neither IngeTrazo nor Qt (Croquis for Blender shares
-# it): lend it both before anything draws.
+# The drawing core works with NumPy alone, so it can be tested on its own:
+# IngeTrazo and Qt are lent to it here, before anything draws.
 from . import host as _host  # noqa: E402
 
 _host.install()

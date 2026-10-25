@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
-"""Saving a drawing in IngeTrazo: PNG, SVG in layers, PDF (with Qt; the
-SVG is :mod:`.vector`'s, shared with Blender).
+"""Saving a drawing in IngeTrazo: PNG, SVG in layers, PDF (with Qt, and
+:mod:`.vector` for the SVG).
 
 The ink is vector in SVG and PDF: every stroke (lines, hatching,
 construction and ground strokes) is already a polygon, the outline of a
@@ -40,8 +40,8 @@ def qt_encode(rgb: np.ndarray, fmt: str, quality: int = -1) -> bytes:
 
 
 def svg_text(layers: Layers) -> str:
-    """The drawing as SVG in layers (:func:`.vector.svg_text`, the same as
-    Blender's), its layers named in the user's language."""
+    """The drawing as SVG in layers (:func:`.vector.svg_text`), its layers
+    named in the user's language."""
     from . import vector
     return vector.svg_text(layers, qt_encode,
                            (tr("Paper"), tr("Colour and shade"), tr("Ink")))

@@ -3,9 +3,9 @@
 """What Croquis takes from IngeTrazo and from Qt.
 
 The drawing core (compose, drawing, hatch, ink, marker, palette, paper,
-presets, raster, shadow, strokes, texts, vector, visibility, watercolour)
-knows neither: Croquis for Blender copies it as it is. Here IngeTrazo lends
-it, through the core's hooks, its language, the sun of its Shadows panel,
+presets, shadow, strokes, texts, vector, visibility, watercolour) works
+with NumPy alone, so it can be tested on its own. Here IngeTrazo lends it,
+through the core's hooks, its language, the sun of its Shadows panel,
 the faces and paint of its model, and Qt's smooth scaling and painter.
 :func:`install` runs when the extension loads (croquis/__init__.py).
 """

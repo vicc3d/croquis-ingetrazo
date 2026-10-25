@@ -13,9 +13,9 @@ surface well behind it, on one side is where a shape ends, and is drawn
 heavier. A crease between two faces has the model at its own depth on both
 sides.
 
-All NumPy over the projection of the host's camera (its own
+All NumPy over the projection of IngeTrazo's camera (its own
 ``projection_matrix() * view_matrix()``), so the lines land where the
-view draws them, in perspective, two-point or parallel.
+viewport draws them, in perspective, two-point or parallel.
 """
 from __future__ import annotations
 

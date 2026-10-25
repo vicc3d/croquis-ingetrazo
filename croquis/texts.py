@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
-"""The extension's own words (the host's catalogues stay the host's)."""
+"""The extension's own words (IngeTrazo's catalogues stay IngeTrazo's)."""
 from __future__ import annotations
 
 _TEXTS = {
@@ -239,7 +239,7 @@ _TEXTS = {
 }
 
 
-#: ``() -> "es" / "pt-BR" / …``: the host's language, when it lends it.
+#: ``() -> "es" / "pt-BR" / …``: IngeTrazo's language (set in host.py).
 #: English when unset.
 LANGUAGE = None
 
@@ -247,7 +247,7 @@ LANGUAGE = None
 def tr(text: str, **kw) -> str:
     try:
         lang = LANGUAGE() if LANGUAGE is not None else "en"
-    except Exception:                    # noqa: BLE001 (a host's hiccup)
+    except Exception:                    # noqa: BLE001 (an older IngeTrazo)
         lang = "en"
     out = _TEXTS.get(lang, {}).get(text, text)
     return out.format(**kw) if kw else out

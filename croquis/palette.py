@@ -58,7 +58,7 @@ def nearest_marker(rgb) -> int:
 
 def _rgb_of(viewport, attrs, default):
     """The colour a face shows (0..1): its paint, or its texture's average
-    colour (as a shaded view shows it), or the default face colour."""
+    colour (as IngeTrazo's Shaded style), or the default face colour."""
     tex = attrs.get("texture") if attrs else None
     if isinstance(tex, dict) and tex.get("path"):
         avg = getattr(viewport, "_texture_avg_color", None)
@@ -75,12 +75,13 @@ def _lightness(rgb) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-#: Where the host reads the visible faces and their paint, tried in order:
-#: ``source(viewport, colour_of)`` -> ``(tris, marker, tone)`` or None.
-#: A host that hands its colours with the view
-#: (``viewport.croquis_colours``) sets none.
+#: Where IngeTrazo's faces and their paint are read, tried in order
+#: (host.py): ``source(viewport, colour_of)`` -> ``(tris, marker, tone)``
+#: or None.
+#: (The live preview's frozen view brings its colours along, in
+#: ``viewport.croquis_colours``.)
 SOURCES = ()
-#: The log a failed source is told in (the host may name its own).
+#: The log a failed source is told in (IngeTrazo's extensions log).
 LOGGER = "croquis"
 
 
@@ -98,7 +99,7 @@ def _cache_key(viewport):
         vis = hashlib.blake2b(np.ascontiguousarray(idx.ent_vis).tobytes(),
                               digest_size=16).digest()
         return (id(scene), version, id(idx.tri_v0), vis)
-    except Exception:                    # noqa: BLE001 (another host)
+    except Exception:                    # noqa: BLE001 (another IngeTrazo)
         return None
 
 
@@ -121,9 +122,9 @@ def triangle_colours(viewport):
 
 def _triangle_colours(viewport):
     """``(tris (T,3,3), marker (T,) index or -1, tone (T,) lightness 0..1)``
-    of the visible faces: the colour as the host draws the face (its own
-    paint, or its group's; a texture by its average colour), read by the
-    host's :data:`SOURCES` in turn. A face whose paint cannot be read counts
+    of the visible faces: the colour as IngeTrazo draws the face (its own
+    paint, or its group's; a texture by its average colour), read by
+    :data:`SOURCES` in turn. A face whose paint cannot be read counts
     as the default face; ``None`` only when nothing can be read (then the
     drawing has no colour, and the reason is in the log)."""
     import logging
@@ -146,7 +147,7 @@ def _triangle_colours(viewport):
     for source in SOURCES:
         try:
             out = source(viewport, colour_of)
-        except Exception:                # noqa: BLE001 (another host)
+        except Exception:                # noqa: BLE001 (another IngeTrazo)
             log.warning("croquis: colours via %s failed", source.__name__,
                         exc_info=True)
             continue

@@ -91,13 +91,8 @@ def make(kind: str, width: int, height: int, seed: int = 7,
     return np.clip(sheet, 0, 255).astype(np.float32)
 
 
-#: How the host reads an image of your own, for the NumPy cover:
-#: ``path -> (H, W, 3) floats 0..255`` or None. The host sets it.
-IMAGE_READER = None
-
-
-#: ``(path, width, height) -> (H, W, 3) floats`` or None: a host's own way
-#: to lay an image over the sheet, when it lends one.
+#: ``(path, width, height) -> (H, W, 3) floats`` or None: how IngeTrazo
+#: lays an image of your own over the sheet (with Qt, in host.py).
 IMAGE_COVER = None
 
 
@@ -106,25 +101,6 @@ def _from_image(path: str, width: int, height: int):
     stretched to cover it (cropped to keep its proportions)."""
     if not Path(path).is_file():
         return None
-    if IMAGE_COVER is not None:
-        return IMAGE_COVER(path, width, height)
-    return _from_array(path, width, height)
-
-
-def _from_array(path: str, width: int, height: int):
-    """:func:`_from_image` with :data:`IMAGE_READER` and NumPy."""
-    src = IMAGE_READER(path) if IMAGE_READER is not None else None
-    if src is None or not src.size:
+    if IMAGE_COVER is None:
         return None
-    src = np.asarray(src, dtype=np.float32)[:, :, :3]
-    h, w = src.shape[:2]
-    if w < TILE_BELOW:
-        ry, rx = -(-height // h), -(-width // w)
-        return np.tile(src, (ry, rx, 1))[:height, :width].copy()
-    k = max(width / w, height / h)
-    from .drawing import resize_array
-    big = resize_array(src.astype(np.float64), max(width, int(round(w * k))),
-                       max(height, int(round(h * k))))
-    y0 = (big.shape[0] - height) // 2
-    x0 = (big.shape[1] - width) // 2
-    return big[y0:y0 + height, x0:x0 + width].astype(np.float32)
+    return IMAGE_COVER(path, width, height)

@@ -28,9 +28,9 @@ INK = (29, 26, 23)               # not black: a warm dark ink
 #: The depth buffer is never wider than this (lines and fills are scaled up
 #: from it): enough for a sketch, and quick.
 MAX_BUFFER_WIDTH = 2000
-#: What a host may lend the drawing (with none, NumPy does it all):
+#: What IngeTrazo lends the drawing (with Qt, in host.py):
 #: ``RESIZE(rgb, width, height)``, a smoother scaling than
-#: :func:`resize_array`; ``PAINT(layers)``, the drawing as the host's image.
+#: :func:`resize_array`; ``PAINT(layers)``, the drawing as a QImage.
 RESIZE = None
 PAINT = None
 
@@ -162,8 +162,8 @@ def fill_layer(view: View, style: mk.MarkerStyle, maps: dict | None = None,
 
 
 def resize_array(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
-    """:func:`_resize` in NumPy (bilinear, pixel centres aligned), when the
-    host lends no :data:`RESIZE`."""
+    """:func:`_resize` in NumPy (bilinear, pixel centres aligned), when no
+    :data:`RESIZE` is lent."""
     h, w = rgb.shape[:2]
     ys = np.clip((np.arange(height) + 0.5) * h / height - 0.5, 0, h - 1)
     xs = np.clip((np.arange(width) + 0.5) * w / width - 0.5, 0, w - 1)
@@ -217,18 +217,10 @@ class Layers:
         return out
 
     def image(self):
-        """The drawing as the host's own image (:data:`PAINT`)."""
+        """The drawing as one image (:data:`PAINT`)."""
         if PAINT is None:
-            raise RuntimeError("no painter: use pixels()")
+            raise RuntimeError("no painter: Croquis draws once its extension is loaded")
         return PAINT(self)
-
-    def pixels(self) -> np.ndarray:
-        """The drawing as (H, W, 3) bytes, with no toolkit: the strokes laid by
-        :mod:`.raster` (as a painter would, to a hair)."""
-        from . import raster
-        rgb = np.array(self.coloured_sheet(), dtype=np.float64)
-        raster.lay_strokes(rgb, self.strokes, INK)
-        return np.clip(np.rint(rgb), 0, 255).astype(np.uint8)
 
 
 def page_size(fmt: str, dpi: int, landscape: bool) -> tuple:
@@ -291,6 +283,6 @@ def sketch(viewport, style: st.LineStyle, width: int, view: View | None = None,
            composition: cp.Composition | None = None,
            paper_kind: str = "cream", paper_image: str = "",
            page: tuple | None = None):
-    """:func:`render`, as the host's image (:meth:`Layers.image`)."""
+    """:func:`render`, as one image (:meth:`Layers.image`)."""
     return render(viewport, style, width, view, marker, composition,
                   paper_kind, paper_image, page).image()
