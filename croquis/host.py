@@ -26,6 +26,7 @@ def install() -> None:
     texts.LANGUAGE = _language
     marker.SUN = _sun
     palette.SOURCES = (from_pick_index, from_scene)
+    palette.LOGGER = "ingetrazo.plugins"     # IngeTrazo's extensions log
 
 
 # ---- IngeTrazo ---------------------------------------------------------------

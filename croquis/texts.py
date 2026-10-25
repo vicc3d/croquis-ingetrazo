@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
-"""The extension's own words (IngeTrazo's catalogues stay IngeTrazo's)."""
+"""The extension's own words (the host's catalogues stay the host's)."""
 from __future__ import annotations
 
 _TEXTS = {
@@ -239,8 +239,8 @@ _TEXTS = {
 }
 
 
-#: ``() -> "es" / "pt-BR" / …``: the host's language (IngeTrazo's, set in
-#: croquis/host.py). English when unset.
+#: ``() -> "es" / "pt-BR" / …``: the host's language, when it lends it.
+#: English when unset.
 LANGUAGE = None
 
 

@@ -2,8 +2,8 @@
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
 """Which parts of the model's edges the view shows, fast, on a depth buffer.
 
-IngeTrazo's own hidden-line pass (``core.hlr``) is exact, and takes minutes
-on a model of a few tens of thousands of triangles. A sketch needs the
+An exact hidden-line pass takes minutes on a model of a few tens of
+thousands of triangles. A sketch needs the
 lines a hand would draw, not exact ones, so here the triangles are drawn
 into a depth buffer at the drawing's resolution and every edge is walked
 pixel by pixel: where nothing stands in front of it, it shows.
@@ -13,9 +13,9 @@ surface well behind it, on one side is where a shape ends, and is drawn
 heavier. A crease between two faces has the model at its own depth on both
 sides.
 
-All NumPy over the projection of IngeTrazo's camera (its own
+All NumPy over the projection of the host's camera (its own
 ``projection_matrix() * view_matrix()``), so the lines land where the
-viewport draws them, in perspective, two-point or parallel.
+view draws them, in perspective, two-point or parallel.
 """
 from __future__ import annotations
 

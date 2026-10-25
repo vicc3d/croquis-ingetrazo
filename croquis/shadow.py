@@ -2,8 +2,8 @@
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
 """Cast shadows: which of the pixels the view shows the light cannot reach.
 
-The ground: like IngeTrazo's own view, the shadows also fall on a level
-ground under the model (at its foot, or at zero) even when the model has
+The ground: as a modeller's own view does, the shadows also fall on a
+level ground under the model (at its foot, or at zero) even when the model has
 no floor of its own.
 
 A shadow map: the model's triangles drawn into a depth buffer seen from the
@@ -90,7 +90,7 @@ def _blocked(P: np.ndarray, M: np.ndarray, smap: np.ndarray) -> np.ndarray:
 
 def ground_level(tris: np.ndarray) -> float:
     """The ground's height: the model's foot, or zero if that is higher
-    (as IngeTrazo's render puts its ground)."""
+    (where a render usually puts its ground)."""
     return min(float(tris[:, :, 2].min()), 0.0) if len(tris) else 0.0
 
 

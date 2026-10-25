@@ -91,13 +91,13 @@ def make(kind: str, width: int, height: int, seed: int = 7,
     return np.clip(sheet, 0, 255).astype(np.float32)
 
 
-#: Where there is no Qt (Blender), how to read an image of your own:
+#: How the host reads an image of your own, for the NumPy cover:
 #: ``path -> (H, W, 3) floats 0..255`` or None. The host sets it.
 IMAGE_READER = None
 
 
 #: ``(path, width, height) -> (H, W, 3) floats`` or None: a host's own way
-#: to lay an image over the sheet (IngeTrazo: Qt's, croquis/host.py).
+#: to lay an image over the sheet, when it lends one.
 IMAGE_COVER = None
 
 

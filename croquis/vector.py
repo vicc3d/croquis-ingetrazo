@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
-"""A drawing as SVG in layers and as PDF, with no toolkit: shared by
-IngeTrazo and Blender.
+"""A drawing as SVG in layers and as PDF, with no toolkit, whatever the
+host.
 
 The ink is vector in both: every stroke is already a polygon (the outline
 of a stroke with its changing width), so it goes out as a path, editable
@@ -11,7 +11,7 @@ onto the paper as a marker's ink is; in PDF one picture, the paper with
 the fill laid on it.
 
 Pictures are encoded by the host (``encode(rgb, fmt, quality) -> bytes``,
-``fmt`` "PNG" or "JPG"; Qt in IngeTrazo, Blender's own in Blender); without
+``fmt`` "PNG" or "JPG": the host's own image writer); without
 one, or when it cannot, PNG is written here with zlib.
 """
 from __future__ import annotations

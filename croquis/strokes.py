@@ -2,9 +2,9 @@
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
 """Hand-drawn strokes from exact line segments.
 
-Pure Python and NumPy (no Qt), so it can be tested on its own. The input is
-what IngeTrazo's hidden-line pass gives: the visible segments of the model,
-in output pixels. Each one becomes one or two ink strokes, as an architect
+Pure Python and NumPy, so it can be tested on its own. The input is
+what the depth buffer of :mod:`.visibility` gives: the visible segments of
+the model, in output pixels. Each one becomes one or two ink strokes, as an architect
 draws them freehand:
 
 - it runs past the corner (overshoot), but only at a real corner, where it

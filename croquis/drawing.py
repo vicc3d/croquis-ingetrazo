@@ -28,10 +28,9 @@ INK = (29, 26, 23)               # not black: a warm dark ink
 #: The depth buffer is never wider than this (lines and fills are scaled up
 #: from it): enough for a sketch, and quick.
 MAX_BUFFER_WIDTH = 2000
-#: What a host lends the drawing (IngeTrazo: Qt, set by croquis/host.py;
-#: Blender sets none and gets NumPy): ``RESIZE(rgb, width, height)``, a
-#: smoother scaling than :func:`resize_array`; ``PAINT(layers)``, the
-#: drawing as the host's image.
+#: What a host may lend the drawing (with none, NumPy does it all):
+#: ``RESIZE(rgb, width, height)``, a smoother scaling than
+#: :func:`resize_array`; ``PAINT(layers)``, the drawing as the host's image.
 RESIZE = None
 PAINT = None
 
@@ -218,14 +217,14 @@ class Layers:
         return out
 
     def image(self):
-        """The drawing as the host's own image (IngeTrazo: a QImage)."""
+        """The drawing as the host's own image (:data:`PAINT`)."""
         if PAINT is None:
             raise RuntimeError("no painter: use pixels()")
         return PAINT(self)
 
     def pixels(self) -> np.ndarray:
-        """The drawing as (H, W, 3) bytes, without Qt: the strokes laid by
-        :mod:`.raster` (as IngeTrazo's painter would, to a hair)."""
+        """The drawing as (H, W, 3) bytes, with no toolkit: the strokes laid by
+        :mod:`.raster` (as a painter would, to a hair)."""
         from . import raster
         rgb = np.array(self.coloured_sheet(), dtype=np.float64)
         raster.lay_strokes(rgb, self.strokes, INK)

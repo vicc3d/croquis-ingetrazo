@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Victor Crespo (3dvic.com · github.com/vicc3d)
 """The ink strokes laid on an image with NumPy alone, for a host that lends
-no painter (Blender): each stroke's outline filled even-odd, as IngeTrazo's
-painter fills a polygon, smoothed at its edges, and laid over what is already there.
+no painter: each stroke's outline filled even-odd, as a painter fills a
+polygon, smoothed at its edges, and laid over what is already there.
 
 A row of pixels is cut four times; on each cut the outline's crossings
 give the spans inside, measured exactly across (a span that starts a third
