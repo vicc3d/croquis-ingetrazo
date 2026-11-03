@@ -14,6 +14,9 @@ _TEXTS = {
         "Draw the sketch at its full size and save it as PNG, SVG or PDF":
             "Dibujar el croquis a su tamaño completo y guardarlo en PNG, SVG o PDF",
         "Croquis: hold the view still": "Croquis: deja la vista quieta",
+        "Croquis could not draw this view · see its panel":
+            "Croquis no pudo dibujar esta vista · mira su panel",
+        "Could not draw the view: {error}": "No se pudo dibujar la vista: {error}",
         "{d} dpi": "{d} ppp",
         "Width in pixels": "Ancho en píxeles",
         "Save as…": "Guardar como…",
@@ -130,6 +133,9 @@ _TEXTS = {
         "Draw the sketch at its full size and save it as PNG, SVG or PDF":
             "Desenhar o croqui no tamanho completo e salvá-lo em PNG, SVG ou PDF",
         "Croquis: hold the view still": "Croquis: deixe a vista parada",
+        "Croquis could not draw this view · see its panel":
+            "O Croquis não conseguiu desenhar esta vista · veja o painel",
+        "Could not draw the view: {error}": "Não foi possível desenhar a vista: {error}",
         "{d} dpi": "{d} dpi",
         "Width in pixels": "Largura em pixels",
         "Save as…": "Salvar como…",

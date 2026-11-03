@@ -836,3 +836,49 @@ def test_the_live_preview_draws_once_the_view_is_still(window):
     assert wait_for_image()                                       # and drawn again
     panel.live_switch.click()
     assert not live.enabled and live.image is None
+
+
+def test_a_live_drawing_that_fails_says_so_and_is_not_retried(window, monkeypatch):
+    """A drawing that fails is not tried again while the view stays the
+    same, and the badge and the panel say what happened (the badge asked
+    to hold the view still, for ever, issue #1)."""
+    from PySide6.QtCore import QEventLoop, QTimer
+    from PySide6.QtGui import QImage, QPainter
+    win, _a = window
+    calls = []
+
+    def broken(*_a, **_k):
+        calls.append(1)
+        raise RuntimeError("broken on purpose")
+    monkeypatch.setattr(drawing, "sketch", broken)
+    panel = _panel(win)
+    live = panel.live
+    panel.live_switch.click()
+    loop = QEventLoop()
+    QTimer.singleShot(2500, loop.quit)
+    loop.exec()
+    assert len(calls) == 1
+    assert live.failed_key == live.view_key()
+    assert "broken on purpose" in panel.status.text()
+    vp = win.viewport
+    img = QImage(vp.width(), vp.height(), QImage.Format_ARGB32)
+    p = QPainter(img)
+    texts = []
+    monkeypatch.setattr(QPainter, "drawText",
+                        lambda self, *a: texts.append(a[-1]))
+    live.paint(vp, p)
+    p.end()
+    assert texts == ["Croquis could not draw this view · see its panel"]
+    panel.live_switch.click()
+
+
+def test_a_drawing_that_fails_says_so_in_the_panel(window, monkeypatch):
+    win, _a = window
+
+    def broken(*_a, **_k):
+        raise RuntimeError("broken on purpose")
+    monkeypatch.setattr(drawing, "render", broken)
+    panel = _panel(win)
+    panel.draw()
+    assert panel._window is None
+    assert "broken on purpose" in panel.status.text()

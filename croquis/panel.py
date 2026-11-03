@@ -723,6 +723,15 @@ class CroquisPanel(QWidget):
                                     composition=self.composition(),
                                     paper_kind=self.s["paper"],
                                     paper_image=self.s["paper_image"], page=page)
+        except Exception as e:                       # noqa: BLE001
+            # Said in the panel and logged: the button did nothing at all
+            # when a drawing failed.
+            import logging
+            logging.getLogger("ingetrazo.plugins").warning(
+                "croquis: the drawing failed", exc_info=True)
+            self._say(tr("Could not draw the view: {error}",
+                         error=f"{type(e).__name__}: {e}"))
+            return None
         finally:
             QApplication.restoreOverrideCursor()
         self._say("")

@@ -78,6 +78,7 @@ class LivePreview(QObject):
         self.image = None             # the sketch, and the view it is of
         self.image_key = None
         self.pending = None           # (future, key) of a drawing under way
+        self.failed_key = None        # the view a drawing failed on
         self._seen = None             # the view as last looked at
         self._still_since = 0
         self._pool = ThreadPoolExecutor(max_workers=1)
@@ -89,7 +90,7 @@ class LivePreview(QObject):
     # ---- On and off ------------------------------------------------------------
     def set_enabled(self, on: bool) -> None:
         self.enabled = bool(on)
-        self.image = self.image_key = None
+        self.image = self.image_key = self.failed_key = None
         self._seen = None
         if self.enabled:
             self.timer.start()
@@ -113,16 +114,42 @@ class LivePreview(QObject):
                  json.dumps(self.panel.s, sort_keys=True)]
         return repr(parts)
 
+    def _failed(self, key, what: str) -> None:
+        """A drawing of the view ``key`` failed: it is logged once and not
+        tried again until the view changes, and the badge and the panel say
+        so (it asked to hold the view still, for ever, when one failed)."""
+        import logging
+        import sys
+        logging.getLogger("ingetrazo.plugins").warning(
+            "croquis: the live preview %s", what, exc_info=True)
+        e = sys.exc_info()[1]
+        if e is not None:
+            from .texts import tr
+            self.panel._say(tr("Could not draw the view: {error}",
+                               error=f"{type(e).__name__}: {e}"))
+        self.failed_key = key
+        self.app.viewport.update()
+
     def _tick(self) -> None:
         self._clock += POLL_MS
-        key = self.view_key()
+        try:
+            key = self.view_key()
+        except Exception:                             # noqa: BLE001
+            # The view cannot be read (another extension changed the
+            # camera or the model in a way Croquis does not know).
+            if self.failed_key != "view":
+                self._failed("view", "could not read the view")
+            self._seen = "view"
+            return
         if key != self._seen:
             self._seen = key
             self._still_since = self._clock
             if self.image_key != key and self.image is not None:
                 self.app.viewport.update()          # step aside while moving
+            elif self.failed_key is not None:
+                self.app.viewport.update()          # the badge, back to normal
             return
-        if self.image_key == key:
+        if self.image_key == key or self.failed_key == key:
             return
         if self.pending is not None:
             future, pkey = self.pending
@@ -132,25 +159,22 @@ class LivePreview(QObject):
             try:
                 img = future.result()
             except Exception:                         # noqa: BLE001
-                import logging
-                logging.getLogger("ingetrazo.plugins").warning(
-                    "croquis: the live preview failed", exc_info=True)
-                img = None
+                if pkey == key:
+                    self._failed(key, "failed")
+                return
             if pkey == key and img is not None:
                 self.image, self.image_key = img, key
+                if self.failed_key is not None:       # drawn again after all
+                    self.failed_key = None
+                    self.panel._say("")
                 self.app.viewport.update()
             return
         if self._clock - self._still_since >= SETTLE_MS:
             try:
                 self._start(key)
             except Exception:                         # noqa: BLE001
-                # Not again for this view: the timer would retry it, and
-                # log it, every tick.
-                import logging
-                logging.getLogger("ingetrazo.plugins").warning(
-                    "croquis: the live preview could not start", exc_info=True)
-                self.image, self.image_key = None, key
-                self.app.viewport.update()
+                self.image = None
+                self._failed(key, "could not start")
 
     def _start(self, key: str) -> None:
         from . import palette as pal
@@ -189,6 +213,8 @@ class LivePreview(QObject):
         drawing_now = self.pending is not None and not self.pending[0].done()
         text = tr("Croquis: drawing…") if drawing_now else (
             tr("Croquis live · right-click to save") if current
+            else tr("Croquis could not draw this view · see its panel")
+            if self.failed_key is not None and self.failed_key == self._seen
             else tr("Croquis: hold the view still"))
         f = QFont(painter.font())
         f.setPixelSize(12)
