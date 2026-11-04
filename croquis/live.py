@@ -42,7 +42,8 @@ class _Frozen:
     def __init__(self, viewport, colours) -> None:
         self.camera = _copy_camera(viewport.camera)
         self.scene = viewport.scene
-        self._geom = viewport.hlr_geometry()
+        from .drawing import view_geometry
+        self._geom = view_geometry(viewport)
         self.croquis_colours = colours
         self.DEFAULT_FACE_COLOR = getattr(viewport, "DEFAULT_FACE_COLOR",
                                           (0.96, 0.95, 0.925))

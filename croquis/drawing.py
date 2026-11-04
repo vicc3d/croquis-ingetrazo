@@ -35,6 +35,20 @@ RESIZE = None
 PAINT = None
 
 
+def view_geometry(viewport):
+    """The viewport's lines and faces (its ``hlr_geometry()``). Another
+    extension may set the attribute to ``None`` on the viewport itself to
+    hide the method from its own drawings: then the method of the
+    viewport's class, which shows the same view (issue #1)."""
+    fn = getattr(viewport, "hlr_geometry", None)
+    if not callable(fn):
+        fn = getattr(type(viewport), "hlr_geometry", None)
+        if not callable(fn):
+            raise TypeError("the viewport offers no hlr_geometry()")
+        return fn(viewport)
+    return fn()
+
+
 class View:
     """What one view of the model gives the drawing, at the buffer's size
     (``scale`` = buffer pixels per drawing pixel)."""
@@ -47,7 +61,7 @@ class View:
         self.bh = max(1, int(round(height * self.scale)))
         self.camera = cam
         self.scene = viewport.scene
-        self.geom = viewport.hlr_geometry()
+        self.geom = view_geometry(viewport)
         # A frozen copy of the viewport (the live preview's) brings them.
         coloured = getattr(viewport, "croquis_colours", None)
         if coloured is None:

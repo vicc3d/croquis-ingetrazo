@@ -882,3 +882,23 @@ def test_a_drawing_that_fails_says_so_in_the_panel(window, monkeypatch):
     panel.draw()
     assert panel._window is None
     assert "broken on purpose" in panel.status.text()
+
+
+def test_it_draws_when_another_extension_hides_hlr_geometry(window):
+    """ArchXQ IT Pro sets ``viewport.hlr_geometry = None`` for its own
+    sheets: Croquis still draws the view, with the method of the
+    viewport's class (issue #1)."""
+    win, _a = window
+    vp = win.viewport
+    vp.hlr_geometry = None
+    try:
+        panel = _panel(win)
+        panel.set("size", 1600)
+        panel.draw()
+        assert panel._window is not None and panel._window._img.width() == 1600
+        panel._window.close()
+        from croquis import live, palette
+        frozen = live._Frozen(vp, palette.triangle_colours(vp))
+        assert len(frozen.hlr_geometry()[0])
+    finally:
+        vp.__dict__.pop("hlr_geometry", None)
