@@ -15,7 +15,7 @@ Install: copy the ``croquis`` folder into IngeTrazo's plugins folder
 """
 from __future__ import annotations
 
-__version__ = "0.14.1"
+__version__ = "0.14.2"
 
 # The drawing core works with NumPy alone, so it can be tested on its own:
 # IngeTrazo and Qt are lent to it here, before anything draws.
